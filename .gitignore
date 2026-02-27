@@ -1,9 +1,6 @@
 # Dependencies
 node_modules/
 
-# Build output
-frontend/dist/
-
 # Sensitive - never commit credentials
 backend/credentials.php
 
