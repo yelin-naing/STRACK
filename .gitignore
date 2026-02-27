@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Build output
+frontend/dist/
+
+# Sensitive - never commit credentials
+backend/credentials.php
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
