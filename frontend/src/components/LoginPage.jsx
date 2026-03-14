@@ -310,8 +310,12 @@ function LoginPage({ darkMode, onToggleDarkMode }) {
       }
 
       if (data.success) {
-        const role = data.user?.role || 'student'
+        const user = data.user || {}
+        const role = user.role || 'student'
         const path = role === 'admin' ? '/admin' : role === 'teacher' ? '/lecturer' : '/dashboard'
+        try {
+          localStorage.setItem('strack_user', JSON.stringify(user))
+        } catch (_) {}
         window.location.href = `${BASE}${path}`
       } else {
         setError(data.message || 'Invalid email or password.')

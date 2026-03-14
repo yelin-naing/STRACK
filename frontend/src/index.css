@@ -28,3 +28,13 @@ body {
   min-height: 100vh;
   min-height: 100dvh;
 }
+
+html,
+html body {
+  transition: background-color 0.35s ease;
+}
+
+html.dark,
+html.dark body {
+  background-color: #0f0f0f;
+}
