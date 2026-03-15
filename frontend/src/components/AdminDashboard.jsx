@@ -1,6 +1,6 @@
 /** @jsxImportSource @emotion/react */
 import { css } from '@emotion/react'
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   HiOutlineSquares2X2,
@@ -12,7 +12,14 @@ import {
   HiOutlineArrowRightOnRectangle,
   HiOutlineMoon,
   HiOutlineSun,
+  HiOutlineMagnifyingGlass,
+  HiOutlinePencil,
+  HiOutlineTrash,
+  HiOutlineXMark,
+  HiOutlineStar,
 } from 'react-icons/hi2'
+
+const BASE = '/strack'
 
 const themeTransition = '0.35s ease'
 
@@ -237,9 +244,115 @@ const mainStyles = (darkMode) => css`
   }
 `
 
-const contentStyles = (darkMode) => css`
-  max-width: 800px;
+const contentStyles = (darkMode, wide) => css`
+  max-width: ${wide ? '100%' : '800px'};
   margin: 0 auto;
+`
+
+const studentHeaderStyles = css`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+`
+
+const studentTitleStyles = css`
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 0.25rem 0;
+`
+
+const studentSubtitleStyles = (darkMode) => css`
+  font-size: 0.9rem;
+  color: ${darkMode ? '#9ca3af' : '#666'};
+  margin: 0;
+  transition: color ${themeTransition};
+`
+
+const addStudentBtnStyles = css`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover {
+    background: #1d4ed8;
+  }
+`
+
+const studentSearchStyles = (darkMode) => css`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid ${darkMode ? '#404040' : '#e5e7eb'};
+  border-radius: 8px;
+  background: ${darkMode ? '#1a1a1a' : '#fff'};
+  min-width: 200px;
+  margin-bottom: 1rem;
+  transition: border-color ${themeTransition}, background ${themeTransition};
+
+  &:focus-within {
+    border-color: #2563eb;
+  }
+
+  input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-size: 0.9rem;
+    color: inherit;
+
+    &::placeholder {
+      color: ${darkMode ? '#6b7280' : '#9ca3af'};
+    }
+  }
+
+  svg {
+    width: 18px;
+    height: 18px;
+    color: ${darkMode ? '#6b7280' : '#9ca3af'};
+    flex-shrink: 0;
+    stroke: currentColor;
+    fill: none;
+  }
+`
+
+const attendanceBadgeStyles = (pct, darkMode) => css`
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: ${pct > 0 ? '#7c3aed' : (darkMode ? '#404040' : '#e5e7eb')};
+  color: ${pct > 0 ? '#fff' : (darkMode ? '#9ca3af' : '#6b7280')};
+  transition: background ${themeTransition}, color ${themeTransition};
+`
+
+const pointsCellStyles = css`
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+
+  svg {
+    width: 14px;
+    height: 14px;
+    color: #eab308;
+    flex-shrink: 0;
+    stroke: currentColor;
+    fill: none;
+  }
 `
 
 const titleStyles = css`
@@ -261,6 +374,363 @@ const textStyles = css`
   @media (min-width: 480px) {
     margin-bottom: 1.5rem;
     font-size: 1rem;
+  }
+`
+
+const deptHeaderStyles = css`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+`
+
+const deptTitleBlockStyles = css`
+  flex: 1;
+  min-width: 0;
+`
+
+const deptTitleStyles = css`
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 0.25rem 0;
+`
+
+const deptSubtitleStyles = (darkMode) => css`
+  font-size: 0.9rem;
+  color: ${darkMode ? '#9ca3af' : '#666'};
+  margin: 0;
+  transition: color ${themeTransition};
+`
+
+const addDeptBtnStyles = css`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover {
+    background: #1d4ed8;
+  }
+`
+
+const deptCardStyles = (darkMode) => css`
+  background: ${darkMode ? '#262626' : '#fff'};
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  box-shadow: ${darkMode ? 'none' : '0 1px 3px rgba(0,0,0,0.08)'};
+  transition: background ${themeTransition}, box-shadow ${themeTransition};
+`
+
+const deptCardIconStyles = (darkMode) => css`
+  width: 40px;
+  height: 40px;
+  color: #2563eb;
+  flex-shrink: 0;
+
+  svg {
+    width: 100%;
+    height: 100%;
+    stroke: currentColor;
+    fill: none;
+  }
+`
+
+const deptCardNumberStyles = (darkMode) => css`
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: ${darkMode ? '#fff' : '#1a1a1a'};
+  margin: 0;
+  transition: color ${themeTransition};
+`
+
+const deptCardLabelStyles = (darkMode) => css`
+  font-size: 0.85rem;
+  color: ${darkMode ? '#9ca3af' : '#666'};
+  margin: 0;
+  transition: color ${themeTransition};
+`
+
+const allDeptSectionStyles = css`
+  margin-top: 1.5rem;
+`
+
+const allDeptHeaderStyles = css`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+`
+
+const allDeptTitleStyles = css`
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0;
+`
+
+const deptSearchStyles = (darkMode) => css`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid ${darkMode ? '#404040' : '#e5e7eb'};
+  border-radius: 8px;
+  background: ${darkMode ? '#1a1a1a' : '#fff'};
+  min-width: 200px;
+  transition: border-color ${themeTransition}, background ${themeTransition};
+
+  &:focus-within {
+    border-color: #2563eb;
+    outline: none;
+  }
+
+  input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-size: 0.9rem;
+    color: inherit;
+
+    &::placeholder {
+      color: ${darkMode ? '#6b7280' : '#9ca3af'};
+    }
+  }
+
+  svg {
+    width: 18px;
+    height: 18px;
+    color: ${darkMode ? '#6b7280' : '#9ca3af'};
+    flex-shrink: 0;
+    stroke: currentColor;
+    fill: none;
+  }
+`
+
+const deptTableStyles = (darkMode) => css`
+  width: 100%;
+  border-collapse: collapse;
+  background: ${darkMode ? '#262626' : '#fff'};
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: ${darkMode ? 'none' : '0 1px 3px rgba(0,0,0,0.08)'};
+  transition: background ${themeTransition}, box-shadow ${themeTransition};
+`
+
+const deptTableThStyles = (darkMode) => css`
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: ${darkMode ? '#9ca3af' : '#6b7280'};
+  background: ${darkMode ? '#1a1a1a' : '#f9fafb'};
+  border-bottom: 1px solid ${darkMode ? '#404040' : '#e5e7eb'};
+  transition: color ${themeTransition}, background ${themeTransition}, border-color ${themeTransition};
+`
+
+const deptTableTdStyles = (darkMode) => css`
+  padding: 0.75rem 1rem;
+  font-size: 0.9rem;
+  color: ${darkMode ? '#e5e7eb' : '#1a1a1a'};
+  border-bottom: 1px solid ${darkMode ? '#404040' : '#f3f4f6'};
+  transition: color ${themeTransition}, border-color ${themeTransition};
+`
+
+const deptActionsStyles = css`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`
+
+const deptActionBtnStyles = (darkMode) => css`
+  padding: 0.4rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: ${darkMode ? '#9ca3af' : '#6b7280'};
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+
+  &:hover {
+    background: ${darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)'};
+    color: ${darkMode ? '#fff' : '#1a1a1a'};
+  }
+
+  svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+  }
+`
+
+const deptDeleteBtnStyles = (darkMode) => css`
+  ${deptActionBtnStyles(darkMode)}
+  &:hover {
+    color: #dc2626;
+  }
+`
+
+const modalOverlayStyles = css`
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+`
+
+const modalStyles = (darkMode) => css`
+  background: ${darkMode ? '#1a1a1a' : '#fff'};
+  border-radius: 12px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2);
+  transition: background ${themeTransition};
+`
+
+const modalHeaderStyles = (darkMode) => css`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid ${darkMode ? '#404040' : 'rgba(0,0,0,0.08)'};
+  transition: border-color ${themeTransition};
+`
+
+const modalTitleStyles = (darkMode) => css`
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0;
+  color: ${darkMode ? '#fff' : '#1a1a1a'};
+  transition: color ${themeTransition};
+`
+
+const modalCloseBtnStyles = (darkMode) => css`
+  padding: 0.5rem;
+  border: none;
+  background: transparent;
+  color: ${darkMode ? '#9ca3af' : '#6b7280'};
+  cursor: pointer;
+  border-radius: 6px;
+
+  &:hover {
+    background: ${darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)'};
+    color: inherit;
+  }
+
+  svg {
+    width: 24px;
+    height: 24px;
+    stroke: currentColor;
+    fill: none;
+  }
+`
+
+const modalBodyStyles = css`
+  padding: 1.5rem;
+`
+
+const modalFieldStyles = css`
+  margin-bottom: 1rem;
+
+  &:last-of-type {
+    margin-bottom: 0;
+  }
+`
+
+const modalLabelStyles = (darkMode) => css`
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+  color: ${darkMode ? '#d1d5db' : '#374151'};
+  transition: color ${themeTransition};
+`
+
+const modalInputStyles = (darkMode) => css`
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid ${darkMode ? '#404040' : '#e5e7eb'};
+  border-radius: 8px;
+  font-size: 0.95rem;
+  background: ${darkMode ? '#262626' : '#fff'};
+  color: inherit;
+  box-sizing: border-box;
+  transition: border-color ${themeTransition}, background ${themeTransition};
+
+  &:focus {
+    outline: none;
+    border-color: #2563eb;
+  }
+
+  &::placeholder {
+    color: ${darkMode ? '#6b7280' : '#9ca3af'};
+  }
+`
+
+const modalTextareaStyles = (darkMode) => css`
+  ${modalInputStyles(darkMode)}
+  min-height: 80px;
+  resize: vertical;
+`
+
+const modalFooterStyles = (darkMode) => css`
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1.25rem 1.5rem;
+  border-top: 1px solid ${darkMode ? '#404040' : 'rgba(0,0,0,0.08)'};
+  transition: border-color ${themeTransition};
+`
+
+const modalCancelBtnStyles = (darkMode) => css`
+  padding: 0.5rem 1rem;
+  border: 1px solid ${darkMode ? '#404040' : '#e5e7eb'};
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color ${themeTransition}, background ${themeTransition};
+
+  &:hover {
+    background: ${darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'};
+  }
+`
+
+const modalSubmitBtnStyles = css`
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    background: #1d4ed8;
   }
 `
 
@@ -334,12 +804,238 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
   const navigate = useNavigate()
   const [activeNav, setActiveNav] = useState('dashboard')
 
-  let userName = 'Admin'
+  const [departments, setDepartments] = useState([])
+  const [deptLoading, setDeptLoading] = useState(false)
+  const [deptSearch, setDeptSearch] = useState('')
+  const [deptModalOpen, setDeptModalOpen] = useState(false)
+  const [deptEditId, setDeptEditId] = useState(null)
+  const [deptForm, setDeptForm] = useState({ code: '', name: '', description: '' })
+  const [deptSaving, setDeptSaving] = useState(false)
+
+  const fetchDepartments = useCallback(async () => {
+    setDeptLoading(true)
+    try {
+      const res = await fetch(`${BASE}/backend/departments.php`)
+      const data = await res.json()
+      if (data.success) setDepartments(data.departments || [])
+    } catch (_) {
+      setDepartments([])
+    } finally {
+      setDeptLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (activeNav === 'departments') fetchDepartments()
+  }, [activeNav, fetchDepartments])
+
+  const [students, setStudents] = useState([])
+  const [studentLoading, setStudentLoading] = useState(false)
+  const [studentSearch, setStudentSearch] = useState('')
+  const [studentModalOpen, setStudentModalOpen] = useState(false)
+  const [studentEditId, setStudentEditId] = useState(null)
+  const [studentForm, setStudentForm] = useState({
+    student_id: '',
+    full_name: '',
+    email: '',
+    password: '',
+    department: '',
+    year: '',
+  })
+  const [studentSaving, setStudentSaving] = useState(false)
+  const [departmentsForSelect, setDepartmentsForSelect] = useState([])
+
+  const fetchStudents = useCallback(async () => {
+    setStudentLoading(true)
+    try {
+      const res = await fetch(`${BASE}/backend/students.php?t=${Date.now()}`, { cache: 'no-store' })
+      const data = await res.json()
+      if (data.success) setStudents(data.students || [])
+    } catch (_) {
+      setStudents([])
+    } finally {
+      setStudentLoading(false)
+    }
+  }, [])
+
+  const fetchDepartmentsForSelect = useCallback(async () => {
+    try {
+      const res = await fetch(`${BASE}/backend/departments.php`)
+      const data = await res.json()
+      if (data.success) setDepartmentsForSelect(data.departments || [])
+    } catch (_) {
+      setDepartmentsForSelect([])
+    }
+  }, [])
+
+  useEffect(() => {
+    if (activeNav === 'students') {
+      fetchStudents()
+      fetchDepartmentsForSelect()
+    }
+  }, [activeNav, fetchStudents, fetchDepartmentsForSelect])
+
+  const openAddStudent = () => {
+    setStudentEditId(null)
+    setStudentForm({ student_id: '', full_name: '', email: '', password: '', department: '', year: '' })
+    setStudentModalOpen(true)
+  }
+
+  const openEditStudent = (s) => {
+    setStudentEditId(s.id)
+    setStudentForm({
+      student_id: s.student_id,
+      full_name: s.full_name,
+      email: s.email,
+      password: s.password || '',
+      department: s.department || '',
+      year: s.year || '',
+    })
+    setStudentModalOpen(true)
+  }
+
+  const closeStudentModal = () => setStudentModalOpen(false)
+
+  const saveStudent = async () => {
+    const { student_id, full_name, email, password, department, year } = studentForm
+    if (!student_id.trim() || !full_name.trim() || !email.trim()) return
+    if (!studentEditId && !password.trim()) return
+    setStudentSaving(true)
+    try {
+      if (studentEditId) {
+        const res = await fetch(`${BASE}/backend/students.php`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: studentEditId,
+            student_id: student_id.trim(),
+            full_name: full_name.trim(),
+            email: email.trim(),
+            password: password.trim(),
+            department: department.trim() || '',
+            year: year.trim() || '',
+          }),
+        })
+        const data = await res.json()
+        if (data.success) {
+          closeStudentModal()
+          fetchStudents()
+        }
+      } else {
+        const res = await fetch(`${BASE}/backend/students.php`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            student_id: student_id.trim(),
+            full_name: full_name.trim(),
+            email: email.trim(),
+            password: password.trim(),
+            department: department.trim() || '',
+            year: year.trim() || '',
+          }),
+        })
+        const data = await res.json()
+        if (data.success) {
+          closeStudentModal()
+          fetchStudents()
+        }
+      }
+    } finally {
+      setStudentSaving(false)
+    }
+  }
+
+  const deleteStudent = async (id) => {
+    if (!confirm('Delete this student?')) return
+    try {
+      const res = await fetch(`${BASE}/backend/students.php?id=${id}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (data.success) fetchStudents()
+    } catch (_) {}
+  }
+
+  const filteredStudents = students.filter(
+    (s) =>
+      !studentSearch ||
+      (s.student_id || '').toLowerCase().includes(studentSearch.toLowerCase()) ||
+      (s.full_name || '').toLowerCase().includes(studentSearch.toLowerCase()) ||
+      (s.email || '').toLowerCase().includes(studentSearch.toLowerCase()) ||
+      (s.department || '').toLowerCase().includes(studentSearch.toLowerCase())
+  )
+
+  const YEAR_OPTIONS = ['Foundation', 'Year 1', 'Year 2', 'Placement Year', 'Year 4']
+
+  const openAddDept = () => {
+    setDeptEditId(null)
+    setDeptForm({ code: '', name: '', description: '' })
+    setDeptModalOpen(true)
+  }
+
+  const openEditDept = (d) => {
+    setDeptEditId(d.id)
+    setDeptForm({ code: d.code, name: d.name, description: d.description || '' })
+    setDeptModalOpen(true)
+  }
+
+  const closeDeptModal = () => setDeptModalOpen(false)
+
+  const saveDepartment = async () => {
+    const { code, name, description } = deptForm
+    if (!code.trim() || !name.trim()) return
+    setDeptSaving(true)
+    try {
+      if (deptEditId) {
+        const res = await fetch(`${BASE}/backend/departments.php`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: deptEditId, code: code.trim(), name: name.trim(), description: description.trim() }),
+        })
+        const data = await res.json()
+        if (data.success) {
+          closeDeptModal()
+          fetchDepartments()
+        }
+      } else {
+        const res = await fetch(`${BASE}/backend/departments.php`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: code.trim(), name: name.trim(), description: description.trim() }),
+        })
+        const data = await res.json()
+        if (data.success) {
+          closeDeptModal()
+          fetchDepartments()
+        }
+      }
+    } finally {
+      setDeptSaving(false)
+    }
+  }
+
+  const deleteDepartment = async (id) => {
+    if (!confirm('Delete this department?')) return
+    try {
+      const res = await fetch(`${BASE}/backend/departments.php?id=${id}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (data.success) fetchDepartments()
+    } catch (_) {}
+  }
+
+  const filteredDepartments = departments.filter(
+    (d) =>
+      !deptSearch ||
+      d.code.toLowerCase().includes(deptSearch.toLowerCase()) ||
+      d.name.toLowerCase().includes(deptSearch.toLowerCase()) ||
+      (d.description || '').toLowerCase().includes(deptSearch.toLowerCase())
+  )
+
+  let userName = 'Admin Portal'
   try {
     const stored = localStorage.getItem('strack_user')
     if (stored) {
       const user = JSON.parse(stored)
-      if (user?.name) userName = user.name
+      const name = user?.name || ''
+      userName = (name === 'Test Admin' || name === 'Admin') ? 'Admin Portal' : name || 'Admin Portal'
     }
   } catch (_) {}
 
@@ -400,7 +1096,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
       </aside>
 
       <main css={mainStyles(darkMode)}>
-        <div css={contentStyles(darkMode)}>
+        <div css={contentStyles(darkMode, activeNav === 'departments' || activeNav === 'students')}>
           {activeNav === 'dashboard' && (
             <>
               <h1 css={titleStyles}>Dashboard</h1>
@@ -411,10 +1107,100 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
           )}
           {activeNav === 'students' && (
             <>
-              <h1 css={titleStyles}>Students</h1>
-              <p css={textStyles}>
-                This is the students page. View and manage student accounts, enrolments, and records here.
-              </p>
+              <div css={studentHeaderStyles}>
+                <div>
+                  <h1 css={studentTitleStyles}>Manage Students</h1>
+                  <p css={studentSubtitleStyles(darkMode)}>Add, edit, or remove student records.</p>
+                </div>
+                <button type="button" css={addStudentBtnStyles} onClick={openAddStudent}>
+                  + Add Student
+                </button>
+              </div>
+
+              <div css={studentSearchStyles(darkMode)}>
+                <HiOutlineMagnifyingGlass />
+                <input
+                  type="text"
+                  placeholder="Search students..."
+                  value={studentSearch}
+                  onChange={(e) => setStudentSearch(e.target.value)}
+                />
+              </div>
+
+              <table css={deptTableStyles(darkMode)}>
+                <thead>
+                  <tr>
+                    <th css={deptTableThStyles(darkMode)}>Student ID</th>
+                    <th css={deptTableThStyles(darkMode)}>Name</th>
+                    <th css={deptTableThStyles(darkMode)}>Email</th>
+                    <th css={deptTableThStyles(darkMode)}>Password</th>
+                    <th css={deptTableThStyles(darkMode)}>Department</th>
+                    <th css={deptTableThStyles(darkMode)}>Year</th>
+                    <th css={deptTableThStyles(darkMode)}>GPA</th>
+                    <th css={deptTableThStyles(darkMode)}>Points</th>
+                    <th css={deptTableThStyles(darkMode)}>Attendance</th>
+                    <th css={deptTableThStyles(darkMode)}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {studentLoading ? (
+                    <tr>
+                      <td css={deptTableTdStyles(darkMode)} colSpan={10}>
+                        Loading...
+                      </td>
+                    </tr>
+                  ) : filteredStudents.length === 0 ? (
+                    <tr>
+                      <td css={deptTableTdStyles(darkMode)} colSpan={10}>
+                        No students found.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredStudents.map((s) => (
+                      <tr key={s.id}>
+                        <td css={deptTableTdStyles(darkMode)}>{s.student_id}</td>
+                        <td css={deptTableTdStyles(darkMode)}>{s.full_name}</td>
+                        <td css={deptTableTdStyles(darkMode)}>{s.email}</td>
+                        <td css={deptTableTdStyles(darkMode)}>{s.password || '—'}</td>
+                        <td css={deptTableTdStyles(darkMode)}>{s.department || '—'}</td>
+                        <td css={deptTableTdStyles(darkMode)}>{s.year || '—'}</td>
+                        <td css={deptTableTdStyles(darkMode)}>{Number(s.gpa) || 0}</td>
+                        <td css={deptTableTdStyles(darkMode)}>
+                          <span css={pointsCellStyles}>
+                            <HiOutlineStar />
+                            {Number(s.points) || 0}
+                          </span>
+                        </td>
+                        <td css={deptTableTdStyles(darkMode)}>
+                          <span css={attendanceBadgeStyles(Number(s.attendance) || 0, darkMode)}>
+                            {Number(s.attendance) || 0}%
+                          </span>
+                        </td>
+                        <td css={deptTableTdStyles(darkMode)}>
+                          <div css={deptActionsStyles}>
+                            <button
+                              type="button"
+                              css={deptActionBtnStyles(darkMode)}
+                              onClick={() => openEditStudent(s)}
+                              title="Edit"
+                            >
+                              <HiOutlinePencil />
+                            </button>
+                            <button
+                              type="button"
+                              css={deptDeleteBtnStyles(darkMode)}
+                              onClick={() => deleteStudent(s.id)}
+                              title="Delete"
+                            >
+                              <HiOutlineTrash />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </>
           )}
           {activeNav === 'lecturers' && (
@@ -435,10 +1221,94 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
           )}
           {activeNav === 'departments' && (
             <>
-              <h1 css={titleStyles}>Departments</h1>
-              <p css={textStyles}>
-                This is the departments page. Manage departments, faculties, and organisational structure here.
-              </p>
+              <div css={deptHeaderStyles}>
+                <div css={deptTitleBlockStyles}>
+                  <h1 css={deptTitleStyles}>Departments</h1>
+                  <p css={deptSubtitleStyles(darkMode)}>Manage university departments.</p>
+                </div>
+                <button type="button" css={addDeptBtnStyles} onClick={openAddDept}>
+                  + Add Department
+                </button>
+              </div>
+
+              <div css={deptCardStyles(darkMode)}>
+                <div css={deptCardIconStyles(darkMode)}>
+                  <HiOutlineBuildingOffice />
+                </div>
+                <div>
+                  <p css={deptCardNumberStyles(darkMode)}>{deptLoading ? '...' : departments.length}</p>
+                  <p css={deptCardLabelStyles(darkMode)}>Total Departments</p>
+                </div>
+              </div>
+
+              <div css={allDeptSectionStyles}>
+                <div css={allDeptHeaderStyles}>
+                  <h2 css={allDeptTitleStyles}>All Departments</h2>
+                  <div css={deptSearchStyles(darkMode)}>
+                    <HiOutlineMagnifyingGlass />
+                    <input
+                      type="text"
+                      placeholder="Search departments..."
+                      value={deptSearch}
+                      onChange={(e) => setDeptSearch(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <table css={deptTableStyles(darkMode)}>
+                  <thead>
+                    <tr>
+                      <th css={deptTableThStyles(darkMode)}>Code</th>
+                      <th css={deptTableThStyles(darkMode)}>Name</th>
+                      <th css={deptTableThStyles(darkMode)}>Description</th>
+                      <th css={deptTableThStyles(darkMode)}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {deptLoading ? (
+                      <tr>
+                        <td css={deptTableTdStyles(darkMode)} colSpan={4}>
+                          Loading...
+                        </td>
+                      </tr>
+                    ) : filteredDepartments.length === 0 ? (
+                      <tr>
+                        <td css={deptTableTdStyles(darkMode)} colSpan={4}>
+                          No departments found.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredDepartments.map((d) => (
+                        <tr key={d.id}>
+                          <td css={deptTableTdStyles(darkMode)}>{d.code}</td>
+                          <td css={deptTableTdStyles(darkMode)}>{d.name}</td>
+                          <td css={deptTableTdStyles(darkMode)}>{d.description || '—'}</td>
+                          <td css={deptTableTdStyles(darkMode)}>
+                            <div css={deptActionsStyles}>
+                              <button
+                                type="button"
+                                css={deptActionBtnStyles(darkMode)}
+                                onClick={() => openEditDept(d)}
+                                title="Edit"
+                              >
+                                <HiOutlinePencil />
+                              </button>
+                              <button
+                                type="button"
+                                css={deptDeleteBtnStyles(darkMode)}
+                                onClick={() => deleteDepartment(d.id)}
+                                title="Delete"
+                              >
+                                <HiOutlineTrash />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
           {activeNav === 'calendar' && (
@@ -451,6 +1321,156 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
           )}
         </div>
       </main>
+
+      {studentModalOpen && (
+        <div css={modalOverlayStyles} onClick={closeStudentModal}>
+          <div css={modalStyles(darkMode)} onClick={(e) => e.stopPropagation()}>
+            <div css={modalHeaderStyles(darkMode)}>
+              <h3 css={modalTitleStyles(darkMode)}>
+                {studentEditId ? 'Edit Student' : 'Add Student'}
+              </h3>
+              <button type="button" css={modalCloseBtnStyles(darkMode)} onClick={closeStudentModal} aria-label="Close">
+                <HiOutlineXMark />
+              </button>
+            </div>
+            <div css={modalBodyStyles}>
+              <div css={modalFieldStyles}>
+                <label css={modalLabelStyles(darkMode)}>Full Name *</label>
+                <input
+                  type="text"
+                  css={modalInputStyles(darkMode)}
+                  placeholder="e.g. Ava Thomas"
+                  value={studentForm.full_name}
+                  onChange={(e) => setStudentForm((f) => ({ ...f, full_name: e.target.value }))}
+                />
+              </div>
+              <div css={modalFieldStyles}>
+                <label css={modalLabelStyles(darkMode)}>Email *</label>
+                <input
+                  type="email"
+                  css={modalInputStyles(darkMode)}
+                  placeholder="e.g. ava.thomas@uni.ac.uk"
+                  value={studentForm.email}
+                  onChange={(e) => setStudentForm((f) => ({ ...f, email: e.target.value }))}
+                />
+              </div>
+              <div css={modalFieldStyles}>
+                <label css={modalLabelStyles(darkMode)}>Password {studentEditId ? '(leave blank to keep current)' : '*'}</label>
+                <input
+                  type="text"
+                  css={modalInputStyles(darkMode)}
+                  placeholder="e.g. student123"
+                  value={studentForm.password}
+                  onChange={(e) => setStudentForm((f) => ({ ...f, password: e.target.value }))}
+                />
+              </div>
+              <div css={modalFieldStyles}>
+                <label css={modalLabelStyles(darkMode)}>Student ID {studentEditId ? '' : '*'}</label>
+                <input
+                  type="text"
+                  css={modalInputStyles(darkMode)}
+                  placeholder="e.g. STU2024008"
+                  value={studentForm.student_id}
+                  onChange={(e) => setStudentForm((f) => ({ ...f, student_id: e.target.value }))}
+                  readOnly={!!studentEditId}
+                />
+              </div>
+              <div css={modalFieldStyles}>
+                <label css={modalLabelStyles(darkMode)}>Department</label>
+                <select
+                  css={modalInputStyles(darkMode)}
+                  value={studentForm.department}
+                  onChange={(e) => setStudentForm((f) => ({ ...f, department: e.target.value }))}
+                >
+                  <option value="">Select department</option>
+                  {departmentsForSelect.map((d) => (
+                    <option key={d.id} value={d.name}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div css={modalFieldStyles}>
+                <label css={modalLabelStyles(darkMode)}>Year</label>
+                <select
+                  css={modalInputStyles(darkMode)}
+                  value={studentForm.year}
+                  onChange={(e) => setStudentForm((f) => ({ ...f, year: e.target.value }))}
+                >
+                  <option value="">Select year</option>
+                  {YEAR_OPTIONS.map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div css={modalFooterStyles(darkMode)}>
+              <button type="button" css={modalCancelBtnStyles(darkMode)} onClick={closeStudentModal}>
+                Cancel
+              </button>
+              <button type="button" css={modalSubmitBtnStyles} onClick={saveStudent} disabled={studentSaving}>
+                {studentSaving ? 'Saving...' : studentEditId ? 'Save Changes' : 'Add Student'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deptModalOpen && (
+        <div css={modalOverlayStyles} onClick={closeDeptModal}>
+          <div css={modalStyles(darkMode)} onClick={(e) => e.stopPropagation()}>
+            <div css={modalHeaderStyles(darkMode)}>
+              <h3 css={modalTitleStyles(darkMode)}>
+                {deptEditId ? 'Edit Department' : 'Add New Department'}
+              </h3>
+              <button type="button" css={modalCloseBtnStyles(darkMode)} onClick={closeDeptModal} aria-label="Close">
+                <HiOutlineXMark />
+              </button>
+            </div>
+            <div css={modalBodyStyles}>
+              <div css={modalFieldStyles}>
+                <label css={modalLabelStyles(darkMode)}>Department Name</label>
+                <input
+                  type="text"
+                  css={modalInputStyles(darkMode)}
+                  placeholder="e.g. Newcastle Business School"
+                  value={deptForm.name}
+                  onChange={(e) => setDeptForm((f) => ({ ...f, name: e.target.value }))}
+                />
+              </div>
+              <div css={modalFieldStyles}>
+                <label css={modalLabelStyles(darkMode)}>Department Code</label>
+                <input
+                  type="text"
+                  css={modalInputStyles(darkMode)}
+                  placeholder="e.g. NBS"
+                  value={deptForm.code}
+                  onChange={(e) => setDeptForm((f) => ({ ...f, code: e.target.value }))}
+                />
+              </div>
+              <div css={modalFieldStyles}>
+                <label css={modalLabelStyles(darkMode)}>Description</label>
+                <textarea
+                  css={modalTextareaStyles(darkMode)}
+                  placeholder="e.g. Part of Faculty of Society and Culture"
+                  value={deptForm.description}
+                  onChange={(e) => setDeptForm((f) => ({ ...f, description: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div css={modalFooterStyles(darkMode)}>
+              <button type="button" css={modalCancelBtnStyles(darkMode)} onClick={closeDeptModal}>
+                Cancel
+              </button>
+              <button type="button" css={modalSubmitBtnStyles} onClick={saveDepartment} disabled={deptSaving}>
+                {deptSaving ? 'Saving...' : deptEditId ? 'Update Department' : 'Add Department'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

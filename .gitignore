@@ -17,5 +17,3 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
-backend/credentials.php
-backend/credentials.php

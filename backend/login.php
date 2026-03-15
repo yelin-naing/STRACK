@@ -35,11 +35,29 @@ require_once __DIR__ . '/getConnection.php';
 try {
     $connection = getConnection();
 
+    // Try strack_accounts first (admin, lecturer, test accounts)
     $stmt = $connection->prepare(
         "SELECT id, email, full_name, role FROM strack_accounts WHERE email = :email AND password = :password LIMIT 1"
     );
     $stmt->execute(['email' => $email, 'password' => $password]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    // If not in accounts, try strack_students (students added via Admin)
+    if (!$user) {
+        $stmt = $connection->prepare(
+            "SELECT id, email, full_name FROM strack_students WHERE email = :email AND password = :password LIMIT 1"
+        );
+        $stmt->execute(['email' => $email, 'password' => $password]);
+        $student = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($student) {
+            $user = [
+                'id' => 's' . $student['id'],
+                'email' => $student['email'],
+                'full_name' => $student['full_name'],
+                'role' => 'student',
+            ];
+        }
+    }
 
     if (!$user) {
         echo json_encode(['success' => false, 'message' => 'Invalid email or password']);
