@@ -328,6 +328,74 @@ const studentSearchStyles = (darkMode) => css`
   }
 `
 
+const studentKpiWrapStyles = css`
+  margin-bottom: 1rem;
+`
+
+const studentKpiGridStyles = css`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+`
+
+const studentKpiCardStyles = (darkMode) => css`
+  background: ${darkMode ? '#262626' : '#fff'};
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  box-shadow: ${darkMode ? 'none' : '0 1px 3px rgba(0,0,0,0.08)'};
+  border: 1px solid ${darkMode ? '#333333' : 'rgba(0,0,0,0.04)'};
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.85rem;
+`
+
+const studentKpiNumberStyles = (darkMode) => css`
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: ${darkMode ? '#fff' : '#1a1a1a'};
+  margin: 0;
+`
+
+const studentKpiLabelStyles = (darkMode) => css`
+  font-size: 0.85rem;
+  color: ${darkMode ? '#9ca3af' : '#666'};
+  margin: 0;
+`
+
+const studentKpiIconRowStyles = css`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+`
+
+const studentKpiIconStyles = (darkMode) => css`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: ${darkMode ? '#a78bfa' : '#2563eb'};
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: ${darkMode ? 'rgba(167, 139, 250, 0.14)' : 'rgba(37, 99, 235, 0.10)'};
+
+  svg {
+    width: 100%;
+    height: 100%;
+    stroke: currentColor;
+    fill: none;
+  }
+`
+
+const studentKpiTextColStyles = css`
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.1rem;
+  min-height: 76px;
+`
+
 const attendanceBadgeStyles = (pct, darkMode) => css`
   display: inline-flex;
   align-items: center;
@@ -426,19 +494,24 @@ const addDeptBtnStyles = css`
 const deptCardStyles = (darkMode) => css`
   background: ${darkMode ? '#262626' : '#fff'};
   border-radius: 12px;
-  padding: 1rem 1.25rem;
+  padding: 0.9rem 1rem;
   margin-bottom: 1.5rem;
   display: inline-flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.85rem;
   box-shadow: ${darkMode ? 'none' : '0 1px 3px rgba(0,0,0,0.08)'};
   transition: background ${themeTransition}, box-shadow ${themeTransition};
 `
 
 const deptCardIconStyles = (darkMode) => css`
-  width: 40px;
-  height: 40px;
+  width: 46px;
+  height: 46px;
   color: #2563eb;
+  background: ${darkMode ? 'rgba(167, 139, 250, 0.14)' : 'rgba(37, 99, 235, 0.10)'};
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
 
   svg {
@@ -450,7 +523,7 @@ const deptCardIconStyles = (darkMode) => css`
 `
 
 const deptCardNumberStyles = (darkMode) => css`
-  font-size: 1.5rem;
+  font-size: 1.7rem;
   font-weight: 700;
   color: ${darkMode ? '#fff' : '#1a1a1a'};
   margin: 0;
@@ -869,15 +942,125 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
   }, [])
 
   useEffect(() => {
-    if (activeNav === 'students') {
-      fetchStudents()
-      fetchDepartmentsForSelect()
-    }
+    if (activeNav === 'students') fetchStudents()
+    if (activeNav === 'students' || activeNav === 'lecturers') fetchDepartmentsForSelect()
   }, [activeNav, fetchStudents, fetchDepartmentsForSelect])
+
+  const [lecturers, setLecturers] = useState([])
+  const [lecturerLoading, setLecturerLoading] = useState(false)
+  const [lecturerSearch, setLecturerSearch] = useState('')
+  const [lecturerModalOpen, setLecturerModalOpen] = useState(false)
+  const [lecturerEditId, setLecturerEditId] = useState(null)
+  const [lecturerForm, setLecturerForm] = useState({
+    lecturer_id: '',
+    full_name: '',
+    email: '',
+    department: '',
+  })
+  const [lecturerSaving, setLecturerSaving] = useState(false)
+
+  const fetchLecturers = useCallback(async () => {
+    setLecturerLoading(true)
+    try {
+      const res = await fetch(`${BASE}/backend/lecturers.php?t=${Date.now()}`, { cache: 'no-store' })
+      const data = await res.json()
+      if (data.success) setLecturers(data.lecturers || [])
+    } catch (_) {
+      setLecturers([])
+    } finally {
+      setLecturerLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (activeNav === 'lecturers') fetchLecturers()
+  }, [activeNav, fetchLecturers])
+
+  const openAddLecturer = () => {
+    setLecturerEditId(null)
+    setLecturerForm({ lecturer_id: '', full_name: '', email: '', department: '' })
+    setLecturerModalOpen(true)
+  }
+
+  const openEditLecturer = (l) => {
+    setLecturerEditId(l.id)
+    setLecturerForm({
+      lecturer_id: l.lecturer_id || '',
+      full_name: l.full_name || '',
+      email: l.email || '',
+      department: l.department || '',
+    })
+    setLecturerModalOpen(true)
+  }
+
+  const closeLecturerModal = () => setLecturerModalOpen(false)
+
+  const saveLecturer = async () => {
+    const { lecturer_id, full_name, email, department } = lecturerForm
+    if (!lecturer_id.trim() || !full_name.trim() || !email.trim() || !department.trim()) return
+    setLecturerSaving(true)
+    try {
+      if (lecturerEditId) {
+        const res = await fetch(`${BASE}/backend/lecturers.php`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: lecturerEditId,
+            lecturer_id: lecturer_id.trim(),
+            full_name: full_name.trim(),
+            email: email.trim(),
+            department: department.trim(),
+          }),
+        })
+        const data = await res.json()
+        if (data.success) {
+          closeLecturerModal()
+          fetchLecturers()
+        }
+      } else {
+        const res = await fetch(`${BASE}/backend/lecturers.php`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            lecturer_id: lecturer_id.trim(),
+            full_name: full_name.trim(),
+            email: email.trim(),
+            department: department.trim(),
+          }),
+        })
+        const data = await res.json()
+        if (data.success) {
+          closeLecturerModal()
+          fetchLecturers()
+        }
+      }
+    } finally {
+      setLecturerSaving(false)
+    }
+  }
+
+  const deleteLecturer = async (id) => {
+    if (!confirm('Delete this lecturer?')) return
+    try {
+      const res = await fetch(`${BASE}/backend/lecturers.php?id=${id}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (data.success) fetchLecturers()
+    } catch (_) {}
+  }
+
+  const filteredLecturers = lecturers.filter(
+    (l) =>
+      !lecturerSearch ||
+      (l.lecturer_id || '').toLowerCase().includes(lecturerSearch.toLowerCase()) ||
+      (l.full_name || '').toLowerCase().includes(lecturerSearch.toLowerCase()) ||
+      (l.email || '').toLowerCase().includes(lecturerSearch.toLowerCase()) ||
+      (l.department || '').toLowerCase().includes(lecturerSearch.toLowerCase())
+  )
 
   const openAddStudent = () => {
     setStudentEditId(null)
-    setStudentForm({ student_id: '', full_name: '', email: '', password: '', department: '', year: '' })
+    // Default temporary password for all newly created students
+    setStudentForm({ student_id: '', full_name: '', email: '', password: 'asd123', department: '', year: '' })
     setStudentModalOpen(true)
   }
 
@@ -887,7 +1070,8 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
       student_id: s.student_id,
       full_name: s.full_name,
       email: s.email,
-      password: s.password || '',
+      // Don't prefill password text in the UI.
+      password: '',
       department: s.department || '',
       year: s.year || '',
     })
@@ -1096,7 +1280,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
       </aside>
 
       <main css={mainStyles(darkMode)}>
-        <div css={contentStyles(darkMode, activeNav === 'departments' || activeNav === 'students')}>
+        <div css={contentStyles(darkMode, activeNav === 'departments' || activeNav === 'students' || activeNav === 'lecturers')}>
           {activeNav === 'dashboard' && (
             <>
               <h1 css={titleStyles}>Dashboard</h1>
@@ -1117,6 +1301,53 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
                 </button>
               </div>
 
+              <div css={studentKpiWrapStyles}>
+                <div css={studentKpiCardStyles(darkMode)}>
+                  <span css={studentKpiIconStyles(darkMode)}>
+                    <HiOutlineUserGroup />
+                  </span>
+                  <div css={studentKpiTextColStyles}>
+                    <p css={studentKpiLabelStyles(darkMode)}>Total Students</p>
+                    <p css={studentKpiNumberStyles(darkMode)}>{studentLoading ? '...' : students.length}</p>
+                  </div>
+                </div>
+
+                <div css={studentKpiGridStyles}>
+                  {departmentsForSelect.length > 0
+                    ? departmentsForSelect.map((d) => {
+                        const count = students.filter((s) => (s.department || '') === d.name).length
+                        return (
+                          <div key={d.id} css={studentKpiCardStyles(darkMode)}>
+                            <span css={studentKpiIconStyles(darkMode)}>
+                              <HiOutlineBuildingOffice />
+                            </span>
+                            <div css={studentKpiTextColStyles}>
+                              <p css={studentKpiLabelStyles(darkMode)}>{d.name}</p>
+                              <p css={studentKpiNumberStyles(darkMode)}>{studentLoading ? '...' : count}</p>
+                            </div>
+                          </div>
+                        )
+                      })
+                    : null}
+
+                  {(() => {
+                    const unassignedCount = students.filter((s) => !s.department).length
+                    if (unassignedCount <= 0) return null
+                    return (
+                      <div css={studentKpiCardStyles(darkMode)}>
+                        <span css={studentKpiIconStyles(darkMode)}>
+                          <HiOutlineAcademicCap />
+                        </span>
+                        <div css={studentKpiTextColStyles}>
+                          <p css={studentKpiLabelStyles(darkMode)}>Unassigned</p>
+                          <p css={studentKpiNumberStyles(darkMode)}>{studentLoading ? '...' : unassignedCount}</p>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              </div>
+
               <div css={studentSearchStyles(darkMode)}>
                 <HiOutlineMagnifyingGlass />
                 <input
@@ -1133,7 +1364,6 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
                     <th css={deptTableThStyles(darkMode)}>Student ID</th>
                     <th css={deptTableThStyles(darkMode)}>Name</th>
                     <th css={deptTableThStyles(darkMode)}>Email</th>
-                    <th css={deptTableThStyles(darkMode)}>Password</th>
                     <th css={deptTableThStyles(darkMode)}>Department</th>
                     <th css={deptTableThStyles(darkMode)}>Year</th>
                     <th css={deptTableThStyles(darkMode)}>GPA</th>
@@ -1145,13 +1375,13 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
                 <tbody>
                   {studentLoading ? (
                     <tr>
-                      <td css={deptTableTdStyles(darkMode)} colSpan={10}>
+                      <td css={deptTableTdStyles(darkMode)} colSpan={9}>
                         Loading...
                       </td>
                     </tr>
                   ) : filteredStudents.length === 0 ? (
                     <tr>
-                      <td css={deptTableTdStyles(darkMode)} colSpan={10}>
+                      <td css={deptTableTdStyles(darkMode)} colSpan={9}>
                         No students found.
                       </td>
                     </tr>
@@ -1161,7 +1391,6 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
                         <td css={deptTableTdStyles(darkMode)}>{s.student_id}</td>
                         <td css={deptTableTdStyles(darkMode)}>{s.full_name}</td>
                         <td css={deptTableTdStyles(darkMode)}>{s.email}</td>
-                        <td css={deptTableTdStyles(darkMode)}>{s.password || '—'}</td>
                         <td css={deptTableTdStyles(darkMode)}>{s.department || '—'}</td>
                         <td css={deptTableTdStyles(darkMode)}>{s.year || '—'}</td>
                         <td css={deptTableTdStyles(darkMode)}>{Number(s.gpa) || 0}</td>
@@ -1205,10 +1434,116 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
           )}
           {activeNav === 'lecturers' && (
             <>
-              <h1 css={titleStyles}>Lecturers</h1>
-              <p css={textStyles}>
-                This is the lecturers page. View and manage lecturer accounts and teaching assignments here.
-              </p>
+              <div css={studentHeaderStyles}>
+                <div>
+                  <h1 css={studentTitleStyles}>Lecturer Management</h1>
+                  <p css={studentSubtitleStyles(darkMode)}>Manage teaching staff and teaching assignments.</p>
+                </div>
+                <button type="button" css={addStudentBtnStyles} onClick={openAddLecturer}>
+                  + Add Lecturer
+                </button>
+              </div>
+
+              <div css={studentKpiWrapStyles}>
+                <div css={studentKpiCardStyles(darkMode)}>
+                  <span css={studentKpiIconStyles(darkMode)}>
+                    <HiOutlineUserGroup />
+                  </span>
+                  <div css={studentKpiTextColStyles}>
+                    <p css={studentKpiLabelStyles(darkMode)}>Total Lecturers</p>
+                    <p css={studentKpiNumberStyles(darkMode)}>{lecturerLoading ? '...' : lecturers.length}</p>
+                  </div>
+                </div>
+
+                <div css={studentKpiGridStyles}>
+                  {departmentsForSelect.length > 0
+                    ? departmentsForSelect.map((d) => {
+                        const count = lecturers.filter((l) => (l.department || '') === d.name).length
+                        return (
+                          <div key={d.id} css={studentKpiCardStyles(darkMode)}>
+                            <span css={studentKpiIconStyles(darkMode)}>
+                              <HiOutlineBuildingOffice />
+                            </span>
+                            <div css={studentKpiTextColStyles}>
+                              <p css={studentKpiLabelStyles(darkMode)}>{d.name}</p>
+                              <p css={studentKpiNumberStyles(darkMode)}>{lecturerLoading ? '...' : count}</p>
+                            </div>
+                          </div>
+                        )
+                      })
+                    : null}
+
+                  {/* Modules KPI intentionally omitted (courses not implemented yet) */}
+                </div>
+              </div>
+
+              <div css={studentSearchStyles(darkMode)}>
+                <HiOutlineMagnifyingGlass />
+                <input
+                  type="text"
+                  placeholder="Search lecturers..."
+                  value={lecturerSearch}
+                  onChange={(e) => setLecturerSearch(e.target.value)}
+                />
+              </div>
+
+              <table css={deptTableStyles(darkMode)}>
+                <thead>
+                  <tr>
+                    <th css={deptTableThStyles(darkMode)}>Lecturer ID</th>
+                    <th css={deptTableThStyles(darkMode)}>Name</th>
+                    <th css={deptTableThStyles(darkMode)}>Email</th>
+                    <th css={deptTableThStyles(darkMode)}>Department</th>
+                    <th css={deptTableThStyles(darkMode)}>Modules</th>
+                    <th css={deptTableThStyles(darkMode)}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lecturerLoading ? (
+                    <tr>
+                      <td css={deptTableTdStyles(darkMode)} colSpan={6}>
+                        Loading...
+                      </td>
+                    </tr>
+                  ) : filteredLecturers.length === 0 ? (
+                    <tr>
+                      <td css={deptTableTdStyles(darkMode)} colSpan={6}>
+                        No lecturers found.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredLecturers.map((l) => (
+                      <tr key={l.id}>
+                        <td css={deptTableTdStyles(darkMode)}>{l.lecturer_id}</td>
+                        <td css={deptTableTdStyles(darkMode)}>{l.full_name}</td>
+                        <td css={deptTableTdStyles(darkMode)}>{l.email}</td>
+                        <td css={deptTableTdStyles(darkMode)}>{l.department || '—'}</td>
+                        <td css={deptTableTdStyles(darkMode)}>{Number(l.modules) || 0}</td>
+                        <td css={deptTableTdStyles(darkMode)}>
+                          <div css={deptActionsStyles}>
+                            <button
+                              type="button"
+                              css={deptActionBtnStyles(darkMode)}
+                              onClick={() => openEditLecturer(l)}
+                              title="Edit"
+                            >
+                              <HiOutlinePencil />
+                            </button>
+                            <button
+                              type="button"
+                              css={deptDeleteBtnStyles(darkMode)}
+                              onClick={() => deleteLecturer(l.id)}
+                              title="Delete"
+                            >
+                              <HiOutlineTrash />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </>
           )}
           {activeNav === 'courses' && (
@@ -1236,8 +1571,8 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
                   <HiOutlineBuildingOffice />
                 </div>
                 <div>
-                  <p css={deptCardNumberStyles(darkMode)}>{deptLoading ? '...' : departments.length}</p>
                   <p css={deptCardLabelStyles(darkMode)}>Total Departments</p>
+                  <p css={deptCardNumberStyles(darkMode)}>{deptLoading ? '...' : departments.length}</p>
                 </div>
               </div>
 
@@ -1354,16 +1689,18 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
                   onChange={(e) => setStudentForm((f) => ({ ...f, email: e.target.value }))}
                 />
               </div>
-              <div css={modalFieldStyles}>
-                <label css={modalLabelStyles(darkMode)}>Password {studentEditId ? '(leave blank to keep current)' : '*'}</label>
-                <input
-                  type="text"
-                  css={modalInputStyles(darkMode)}
-                  placeholder="e.g. student123"
-                  value={studentForm.password}
-                  onChange={(e) => setStudentForm((f) => ({ ...f, password: e.target.value }))}
-                />
-              </div>
+              {!studentEditId && (
+                <div css={modalFieldStyles}>
+                  <label css={modalLabelStyles(darkMode)}>Password *</label>
+                  <input
+                    type="password"
+                    css={modalInputStyles(darkMode)}
+                    placeholder="e.g. student123"
+                    value={studentForm.password}
+                    onChange={(e) => setStudentForm((f) => ({ ...f, password: e.target.value }))}
+                  />
+                </div>
+              )}
               <div css={modalFieldStyles}>
                 <label css={modalLabelStyles(darkMode)}>Student ID {studentEditId ? '' : '*'}</label>
                 <input
@@ -1412,6 +1749,80 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
               </button>
               <button type="button" css={modalSubmitBtnStyles} onClick={saveStudent} disabled={studentSaving}>
                 {studentSaving ? 'Saving...' : studentEditId ? 'Save Changes' : 'Add Student'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {lecturerModalOpen && (
+        <div css={modalOverlayStyles} onClick={closeLecturerModal}>
+          <div css={modalStyles(darkMode)} onClick={(e) => e.stopPropagation()}>
+            <div css={modalHeaderStyles(darkMode)}>
+              <h3 css={modalTitleStyles(darkMode)}>{lecturerEditId ? 'Edit Lecturer' : 'Add Lecturer'}</h3>
+              <button type="button" css={modalCloseBtnStyles(darkMode)} onClick={closeLecturerModal} aria-label="Close">
+                <HiOutlineXMark />
+              </button>
+            </div>
+
+            <div css={modalBodyStyles}>
+              <div css={modalFieldStyles}>
+                <label css={modalLabelStyles(darkMode)}>Full Name *</label>
+                <input
+                  type="text"
+                  css={modalInputStyles(darkMode)}
+                  placeholder="e.g. Dr. Sarah Johnson"
+                  value={lecturerForm.full_name}
+                  onChange={(e) => setLecturerForm((f) => ({ ...f, full_name: e.target.value }))}
+                />
+              </div>
+
+              <div css={modalFieldStyles}>
+                <label css={modalLabelStyles(darkMode)}>Email *</label>
+                <input
+                  type="email"
+                  css={modalInputStyles(darkMode)}
+                  placeholder="e.g. sarah.johnson@uni.ac.uk"
+                  value={lecturerForm.email}
+                  onChange={(e) => setLecturerForm((f) => ({ ...f, email: e.target.value }))}
+                />
+              </div>
+
+              <div css={modalFieldStyles}>
+                <label css={modalLabelStyles(darkMode)}>Lecturer ID {lecturerEditId ? '' : '*'}</label>
+                <input
+                  type="text"
+                  css={modalInputStyles(darkMode)}
+                  placeholder="e.g. LEC001"
+                  value={lecturerForm.lecturer_id}
+                  onChange={(e) => setLecturerForm((f) => ({ ...f, lecturer_id: e.target.value }))}
+                  readOnly={!!lecturerEditId}
+                />
+              </div>
+
+              <div css={modalFieldStyles}>
+                <label css={modalLabelStyles(darkMode)}>Department</label>
+                <select
+                  css={modalInputStyles(darkMode)}
+                  value={lecturerForm.department}
+                  onChange={(e) => setLecturerForm((f) => ({ ...f, department: e.target.value }))}
+                >
+                  <option value="">Select department</option>
+                  {departmentsForSelect.map((d) => (
+                    <option key={d.id} value={d.name}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div css={modalFooterStyles(darkMode)}>
+              <button type="button" css={modalCancelBtnStyles(darkMode)} onClick={closeLecturerModal}>
+                Cancel
+              </button>
+              <button type="button" css={modalSubmitBtnStyles} onClick={saveLecturer} disabled={lecturerSaving}>
+                {lecturerSaving ? 'Saving...' : lecturerEditId ? 'Update Lecturer' : 'Add Lecturer'}
               </button>
             </div>
           </div>
