@@ -28,7 +28,7 @@ try {
             $stmt = $connection->query("
                 SELECT id, student_id, full_name, email, 
                        COALESCE(`password`, '') as student_pwd,
-                       department, year, 
+                       department, year, degree,
                        COALESCE(gpa, 0) as gpa, COALESCE(points, 0) as points, COALESCE(attendance, 0) as attendance
                 FROM strack_students 
                 ORDER BY student_id
@@ -51,6 +51,7 @@ try {
             $password = trim($input['password'] ?? '');
             $department = trim($input['department'] ?? '');
             $year = trim($input['year'] ?? '');
+            $degree = trim($input['degree'] ?? '');
 
             if (!$studentId || !$fullName || !$email || !$password) {
                 http_response_code(400);
@@ -59,8 +60,8 @@ try {
             }
 
             $stmt = $connection->prepare("
-                INSERT INTO strack_students (student_id, full_name, email, password, department, year, gpa, points, attendance)
-                VALUES (:student_id, :full_name, :email, :password, :department, :year, 0, 0, 0)
+                INSERT INTO strack_students (student_id, full_name, email, password, department, year, degree, gpa, points, attendance)
+                VALUES (:student_id, :full_name, :email, :password, :department, :year, :degree, 0, 0, 0)
             ");
             $stmt->execute([
                 'student_id' => $studentId,
@@ -69,6 +70,7 @@ try {
                 'password' => $password,
                 'department' => $department ?: null,
                 'year' => $year ?: null,
+                'degree' => $degree ?: null,
             ]);
             $id = $connection->lastInsertId();
             echo json_encode(['success' => true, 'id' => (int) $id]);
@@ -83,6 +85,7 @@ try {
             $password = trim($input['password'] ?? '');
             $department = trim($input['department'] ?? '');
             $year = trim($input['year'] ?? '');
+            $degree = trim($input['degree'] ?? '');
 
             if (!$id || !$studentId || !$fullName || !$email) {
                 http_response_code(400);
@@ -94,7 +97,7 @@ try {
                 $stmt = $connection->prepare("
                     UPDATE strack_students 
                     SET student_id = :student_id, full_name = :full_name, email = :email, password = :password,
-                        department = :department, year = :year
+                        department = :department, year = :year, degree = :degree
                     WHERE id = :id
                 ");
                 $stmt->execute([
@@ -105,12 +108,13 @@ try {
                     'password' => $password,
                     'department' => $department ?: null,
                     'year' => $year ?: null,
+                    'degree' => $degree ?: null,
                 ]);
             } else {
                 $stmt = $connection->prepare("
                     UPDATE strack_students 
                     SET student_id = :student_id, full_name = :full_name, email = :email, 
-                        department = :department, year = :year
+                        department = :department, year = :year, degree = :degree
                     WHERE id = :id
                 ");
                 $stmt->execute([
@@ -120,6 +124,7 @@ try {
                     'email' => $email,
                     'department' => $department ?: null,
                     'year' => $year ?: null,
+                    'degree' => $degree ?: null,
                 ]);
             }
             echo json_encode(['success' => true]);

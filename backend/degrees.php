@@ -1,6 +1,6 @@
 <?php
 /**
- * Departments API - CRUD for strack_departments
+ * Degrees API - CRUD for strack_degrees
  * GET: list all
  * POST: create
  * PUT: update
@@ -25,15 +25,16 @@ try {
 
     switch ($method) {
         case 'GET':
-            $stmt = $connection->query("SELECT id, code, name, description FROM strack_departments ORDER BY code");
+            $stmt = $connection->query("SELECT id, code, name, department, description FROM strack_degrees ORDER BY code");
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            echo json_encode(['success' => true, 'departments' => $rows]);
+            echo json_encode(['success' => true, 'degrees' => $rows]);
             break;
 
         case 'POST':
             $input = json_decode(file_get_contents('php://input'), true) ?: [];
             $code = trim($input['code'] ?? '');
             $name = trim($input['name'] ?? '');
+            $department = trim($input['department'] ?? '');
             $description = trim($input['description'] ?? '');
 
             if (!$code || !$name) {
@@ -43,12 +44,14 @@ try {
             }
 
             $stmt = $connection->prepare(
-                "INSERT INTO strack_departments (code, name, description) VALUES (:code, :name, :description)"
+                "INSERT INTO strack_degrees (code, name, department, description)
+                 VALUES (:code, :name, :department, :description)"
             );
             $stmt->execute([
                 'code' => $code,
                 'name' => $name,
-                'description' => $description,
+                'department' => $department ?: null,
+                'description' => $description ?: null,
             ]);
             $id = $connection->lastInsertId();
             echo json_encode(['success' => true, 'id' => (int) $id]);
@@ -59,6 +62,7 @@ try {
             $id = (int) ($input['id'] ?? 0);
             $code = trim($input['code'] ?? '');
             $name = trim($input['name'] ?? '');
+            $department = trim($input['department'] ?? '');
             $description = trim($input['description'] ?? '');
 
             if (!$id || !$code || !$name) {
@@ -68,13 +72,16 @@ try {
             }
 
             $stmt = $connection->prepare(
-                "UPDATE strack_departments SET code = :code, name = :name, description = :description WHERE id = :id"
+                "UPDATE strack_degrees
+                 SET code = :code, name = :name, department = :department, description = :description
+                 WHERE id = :id"
             );
             $stmt->execute([
                 'id' => $id,
                 'code' => $code,
                 'name' => $name,
-                'description' => $description,
+                'department' => $department ?: null,
+                'description' => $description ?: null,
             ]);
             echo json_encode(['success' => true]);
             break;
@@ -86,7 +93,7 @@ try {
                 echo json_encode(['success' => false, 'error' => 'Id is required']);
                 exit;
             }
-            $stmt = $connection->prepare("DELETE FROM strack_departments WHERE id = :id");
+            $stmt = $connection->prepare("DELETE FROM strack_degrees WHERE id = :id");
             $stmt->execute(['id' => $id]);
             echo json_encode(['success' => true]);
             break;
@@ -99,3 +106,4 @@ try {
     http_response_code(500);
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }
+

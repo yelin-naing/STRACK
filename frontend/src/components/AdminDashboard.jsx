@@ -537,6 +537,74 @@ const deptCardLabelStyles = (darkMode) => css`
   transition: color ${themeTransition};
 `
 
+const courseCardStyles = (darkMode) => css`
+  background: ${darkMode ? '#262626' : '#fff'};
+  border-radius: 12px;
+  padding: 1.25rem 1.25rem;
+  box-shadow: ${darkMode ? 'none' : '0 1px 3px rgba(0,0,0,0.08)'};
+  border: 1px solid ${darkMode ? '#333333' : 'rgba(0,0,0,0.04)'};
+`
+
+const courseAllRowStyles = (darkMode) => css`
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+  color: ${darkMode ? '#9ca3af' : '#6b7280'};
+  font-size: 0.95rem;
+  font-weight: 600;
+
+  svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+  }
+`
+
+const courseTableStyles = (darkMode) => css`
+  width: 100%;
+  border-collapse: collapse;
+  background: ${darkMode ? '#262626' : '#fff'};
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: none;
+`
+
+const courseTableThStyles = (darkMode) => css`
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: ${darkMode ? '#9ca3af' : '#6b7280'};
+  background: ${darkMode ? '#1a1a1a' : '#f9fafb'};
+  border-bottom: 1px solid ${darkMode ? '#404040' : '#e5e7eb'};
+  transition: color ${themeTransition}, background ${themeTransition}, border-color ${themeTransition};
+`
+
+const courseTableTdStyles = (darkMode) => css`
+  padding: 0.85rem 1rem;
+  font-size: 0.9rem;
+  color: ${darkMode ? '#e5e7eb' : '#1a1a1a'};
+  border-bottom: 1px solid ${darkMode ? '#404040' : '#f3f4f6'};
+  vertical-align: middle;
+`
+
+const creditsBadgeStyles = (darkMode) => css`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: #2563eb;
+  color: #fff;
+  min-width: 56px;
+`
+
 const allDeptSectionStyles = css`
   margin-top: 1.5rem;
 `
@@ -861,6 +929,7 @@ const ADMIN_NAV_ITEMS = [
   { id: 'lecturers', label: 'Lecturers', icon: HiOutlineAcademicCap },
   { id: 'courses', label: 'Courses', icon: HiOutlineBookOpen },
   { id: 'departments', label: 'Departments', icon: HiOutlineBuildingOffice },
+  { id: 'degrees', label: 'Degrees', icon: HiOutlineBookOpen },
   { id: 'calendar', label: 'Calendar', icon: HiOutlineCalendar },
 ]
 
@@ -914,6 +983,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
     password: '',
     department: '',
     year: '',
+    degree: '',
   })
   const [studentSaving, setStudentSaving] = useState(false)
   const [departmentsForSelect, setDepartmentsForSelect] = useState([])
@@ -943,7 +1013,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
 
   useEffect(() => {
     if (activeNav === 'students') fetchStudents()
-    if (activeNav === 'students' || activeNav === 'lecturers') fetchDepartmentsForSelect()
+    if (activeNav === 'students' || activeNav === 'lecturers' || activeNav === 'courses' || activeNav === 'degrees') fetchDepartmentsForSelect()
   }, [activeNav, fetchStudents, fetchDepartmentsForSelect])
 
   const [lecturers, setLecturers] = useState([])
@@ -973,7 +1043,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
   }, [])
 
   useEffect(() => {
-    if (activeNav === 'lecturers') fetchLecturers()
+    if (activeNav === 'lecturers' || activeNav === 'courses') fetchLecturers()
   }, [activeNav, fetchLecturers])
 
   const openAddLecturer = () => {
@@ -1057,10 +1127,243 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
       (l.department || '').toLowerCase().includes(lecturerSearch.toLowerCase())
   )
 
+  const [courses, setCourses] = useState([])
+  const [courseLoading, setCourseLoading] = useState(false)
+  const [courseSearch, setCourseSearch] = useState('')
+  const [courseModalOpen, setCourseModalOpen] = useState(false)
+  const [courseEditId, setCourseEditId] = useState(null)
+  const [courseForm, setCourseForm] = useState({
+    course_code: '',
+    course_name: '',
+    department: '',
+    lecturer_id: '',
+    credits: 0,
+  })
+  const [courseSaving, setCourseSaving] = useState(false)
+
+  const fetchCourses = useCallback(async () => {
+    setCourseLoading(true)
+    try {
+      const res = await fetch(`${BASE}/backend/courses.php?t=${Date.now()}`, { cache: 'no-store' })
+      const data = await res.json()
+      if (data.success) setCourses(data.courses || [])
+    } catch (_) {
+      setCourses([])
+    } finally {
+      setCourseLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (activeNav === 'courses') fetchCourses()
+  }, [activeNav, fetchCourses])
+
+  const openAddCourse = () => {
+    setCourseEditId(null)
+    setCourseForm({
+      course_code: '',
+      course_name: '',
+      department: '',
+      lecturer_id: '',
+      credits: 0,
+    })
+    setCourseModalOpen(true)
+  }
+
+  const openEditCourse = (c) => {
+    setCourseEditId(c.id)
+    setCourseForm({
+      course_code: c.course_code || '',
+      course_name: c.course_name || '',
+      department: c.department || '',
+      lecturer_id: c.lecturer_id || '',
+      credits: Number(c.credits) || 0,
+    })
+    setCourseModalOpen(true)
+  }
+
+  const closeCourseModal = () => setCourseModalOpen(false)
+
+  const saveCourse = async () => {
+    const { course_code, course_name, department, lecturer_id, credits } = courseForm
+    if (!course_code.trim() || !course_name.trim()) return
+
+    setCourseSaving(true)
+    try {
+      if (courseEditId) {
+        const res = await fetch(`${BASE}/backend/courses.php`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: courseEditId,
+            course_code: course_code.trim(),
+            course_name: course_name.trim(),
+            department: department.trim() || '',
+            lecturer_id: lecturer_id.trim() || '',
+            credits: Number(credits) || 0,
+          }),
+        })
+        const data = await res.json()
+        if (data.success) {
+          closeCourseModal()
+          fetchCourses()
+        }
+      } else {
+        const res = await fetch(`${BASE}/backend/courses.php`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            course_code: course_code.trim(),
+            course_name: course_name.trim(),
+            department: department.trim() || '',
+            lecturer_id: lecturer_id.trim() || '',
+            credits: Number(credits) || 0,
+          }),
+        })
+        const data = await res.json()
+        if (data.success) {
+          closeCourseModal()
+          fetchCourses()
+        }
+      }
+    } finally {
+      setCourseSaving(false)
+    }
+  }
+
+  const deleteCourse = async (id) => {
+    if (!confirm('Delete this course?')) return
+    try {
+      const res = await fetch(`${BASE}/backend/courses.php?id=${id}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (data.success) fetchCourses()
+    } catch (_) {}
+  }
+
+  const filteredCourses = courses.filter(
+    (c) =>
+      !courseSearch ||
+      (c.course_code || '').toLowerCase().includes(courseSearch.toLowerCase()) ||
+      (c.course_name || '').toLowerCase().includes(courseSearch.toLowerCase()) ||
+      (c.department || '').toLowerCase().includes(courseSearch.toLowerCase()) ||
+      (c.lecturer_name || '').toLowerCase().includes(courseSearch.toLowerCase())
+  )
+
+  const [degrees, setDegrees] = useState([])
+  const [degreeLoading, setDegreeLoading] = useState(false)
+  const [degreeSearch, setDegreeSearch] = useState('')
+  const [degreeModalOpen, setDegreeModalOpen] = useState(false)
+  const [degreeEditId, setDegreeEditId] = useState(null)
+  const [degreeForm, setDegreeForm] = useState({
+    code: '',
+    name: '',
+    department: '',
+    description: '',
+  })
+  const [degreeSaving, setDegreeSaving] = useState(false)
+
+  const fetchDegrees = useCallback(async () => {
+    setDegreeLoading(true)
+    try {
+      const res = await fetch(`${BASE}/backend/degrees.php?t=${Date.now()}`, { cache: 'no-store' })
+      const data = await res.json()
+      if (data.success) setDegrees(data.degrees || [])
+    } catch (_) {
+      setDegrees([])
+    } finally {
+      setDegreeLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (activeNav === 'degrees' || activeNav === 'students') fetchDegrees()
+  }, [activeNav, fetchDegrees])
+
+  const openAddDegree = () => {
+    setDegreeEditId(null)
+    setDegreeForm({ code: '', name: '', department: '', description: '' })
+    setDegreeModalOpen(true)
+  }
+
+  const openEditDegree = (d) => {
+    setDegreeEditId(d.id)
+    setDegreeForm({
+      code: d.code || '',
+      name: d.name || '',
+      department: d.department || '',
+      description: d.description || '',
+    })
+    setDegreeModalOpen(true)
+  }
+
+  const closeDegreeModal = () => setDegreeModalOpen(false)
+
+  const saveDegree = async () => {
+    const { code, name, department, description } = degreeForm
+    if (!code.trim() || !name.trim()) return
+    setDegreeSaving(true)
+    try {
+      if (degreeEditId) {
+        const res = await fetch(`${BASE}/backend/degrees.php`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: degreeEditId,
+            code: code.trim(),
+            name: name.trim(),
+            department: department.trim(),
+            description: description.trim(),
+          }),
+        })
+        const data = await res.json()
+        if (data.success) {
+          closeDegreeModal()
+          fetchDegrees()
+        }
+      } else {
+        const res = await fetch(`${BASE}/backend/degrees.php`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: code.trim(),
+            name: name.trim(),
+            department: department.trim(),
+            description: description.trim(),
+          }),
+        })
+        const data = await res.json()
+        if (data.success) {
+          closeDegreeModal()
+          fetchDegrees()
+        }
+      }
+    } finally {
+      setDegreeSaving(false)
+    }
+  }
+
+  const deleteDegree = async (id) => {
+    if (!confirm('Delete this degree?')) return
+    try {
+      const res = await fetch(`${BASE}/backend/degrees.php?id=${id}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (data.success) fetchDegrees()
+    } catch (_) {}
+  }
+
+  const filteredDegrees = degrees.filter(
+    (d) =>
+      !degreeSearch ||
+      (d.code || '').toLowerCase().includes(degreeSearch.toLowerCase()) ||
+      (d.name || '').toLowerCase().includes(degreeSearch.toLowerCase()) ||
+      (d.department || '').toLowerCase().includes(degreeSearch.toLowerCase()) ||
+      (d.description || '').toLowerCase().includes(degreeSearch.toLowerCase())
+  )
+
   const openAddStudent = () => {
     setStudentEditId(null)
     // Default temporary password for all newly created students
-    setStudentForm({ student_id: '', full_name: '', email: '', password: 'asd123', department: '', year: '' })
+    setStudentForm({ student_id: '', full_name: '', email: '', password: 'asd123', department: '', year: '', degree: '' })
     setStudentModalOpen(true)
   }
 
@@ -1074,6 +1377,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
       password: '',
       department: s.department || '',
       year: s.year || '',
+      degree: s.degree || '',
     })
     setStudentModalOpen(true)
   }
@@ -1081,7 +1385,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
   const closeStudentModal = () => setStudentModalOpen(false)
 
   const saveStudent = async () => {
-    const { student_id, full_name, email, password, department, year } = studentForm
+    const { student_id, full_name, email, password, department, year, degree } = studentForm
     if (!student_id.trim() || !full_name.trim() || !email.trim()) return
     if (!studentEditId && !password.trim()) return
     setStudentSaving(true)
@@ -1098,6 +1402,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
             password: password.trim(),
             department: department.trim() || '',
             year: year.trim() || '',
+            degree: degree.trim() || '',
           }),
         })
         const data = await res.json()
@@ -1116,6 +1421,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
             password: password.trim(),
             department: department.trim() || '',
             year: year.trim() || '',
+            degree: degree.trim() || '',
           }),
         })
         const data = await res.json()
@@ -1144,7 +1450,8 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
       (s.student_id || '').toLowerCase().includes(studentSearch.toLowerCase()) ||
       (s.full_name || '').toLowerCase().includes(studentSearch.toLowerCase()) ||
       (s.email || '').toLowerCase().includes(studentSearch.toLowerCase()) ||
-      (s.department || '').toLowerCase().includes(studentSearch.toLowerCase())
+      (s.department || '').toLowerCase().includes(studentSearch.toLowerCase()) ||
+      (s.degree || '').toLowerCase().includes(studentSearch.toLowerCase())
   )
 
   const YEAR_OPTIONS = ['Foundation', 'Year 1', 'Year 2', 'Placement Year', 'Year 4']
@@ -1280,7 +1587,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
       </aside>
 
       <main css={mainStyles(darkMode)}>
-        <div css={contentStyles(darkMode, activeNav === 'departments' || activeNav === 'students' || activeNav === 'lecturers')}>
+        <div css={contentStyles(darkMode, activeNav === 'departments' || activeNav === 'students' || activeNav === 'lecturers' || activeNav === 'courses' || activeNav === 'degrees')}>
           {activeNav === 'dashboard' && (
             <>
               <h1 css={titleStyles}>Dashboard</h1>
@@ -1365,6 +1672,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
                     <th css={deptTableThStyles(darkMode)}>Name</th>
                     <th css={deptTableThStyles(darkMode)}>Email</th>
                     <th css={deptTableThStyles(darkMode)}>Department</th>
+                    <th css={deptTableThStyles(darkMode)}>Degree</th>
                     <th css={deptTableThStyles(darkMode)}>Year</th>
                     <th css={deptTableThStyles(darkMode)}>GPA</th>
                     <th css={deptTableThStyles(darkMode)}>Points</th>
@@ -1375,13 +1683,13 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
                 <tbody>
                   {studentLoading ? (
                     <tr>
-                      <td css={deptTableTdStyles(darkMode)} colSpan={9}>
+                      <td css={deptTableTdStyles(darkMode)} colSpan={10}>
                         Loading...
                       </td>
                     </tr>
                   ) : filteredStudents.length === 0 ? (
                     <tr>
-                      <td css={deptTableTdStyles(darkMode)} colSpan={9}>
+                      <td css={deptTableTdStyles(darkMode)} colSpan={10}>
                         No students found.
                       </td>
                     </tr>
@@ -1392,6 +1700,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
                         <td css={deptTableTdStyles(darkMode)}>{s.full_name}</td>
                         <td css={deptTableTdStyles(darkMode)}>{s.email}</td>
                         <td css={deptTableTdStyles(darkMode)}>{s.department || '—'}</td>
+                        <td css={deptTableTdStyles(darkMode)}>{(degrees.find((d) => d.code === s.degree)?.name) || s.degree || '—'}</td>
                         <td css={deptTableTdStyles(darkMode)}>{s.year || '—'}</td>
                         <td css={deptTableTdStyles(darkMode)}>{Number(s.gpa) || 0}</td>
                         <td css={deptTableTdStyles(darkMode)}>
@@ -1548,12 +1857,199 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
           )}
           {activeNav === 'courses' && (
             <>
-              <h1 css={titleStyles}>Courses</h1>
-              <p css={textStyles}>
-                This is the courses page. Manage course catalog, assignments, and offerings here.
-              </p>
+              <div css={studentHeaderStyles}>
+                <div>
+                  <h1 css={studentTitleStyles}>Course Management</h1>
+                  <p css={studentSubtitleStyles(darkMode)}>Manage course catalog.</p>
+                </div>
+                <button type="button" css={addStudentBtnStyles} onClick={openAddCourse}>
+                  + Add Course
+                </button>
+              </div>
+
+              <div css={studentKpiWrapStyles}>
+                <div css={studentKpiCardStyles(darkMode)}>
+                  <span css={studentKpiIconStyles(darkMode)}>
+                    <HiOutlineBookOpen />
+                  </span>
+                  <div css={studentKpiTextColStyles}>
+                    <p css={studentKpiLabelStyles(darkMode)}>Total Courses</p>
+                    <p css={studentKpiNumberStyles(darkMode)}>{courseLoading ? '...' : courses.length}</p>
+                  </div>
+                </div>
+
+                <div css={studentKpiGridStyles}>
+                  {departmentsForSelect.length > 0
+                    ? departmentsForSelect.map((d) => {
+                        const count = courses.filter((c) => (c.department || '') === d.name).length
+                        return (
+                          <div key={d.id} css={studentKpiCardStyles(darkMode)}>
+                            <span css={studentKpiIconStyles(darkMode)}>
+                              <HiOutlineBuildingOffice />
+                            </span>
+                            <div css={studentKpiTextColStyles}>
+                              <p css={studentKpiLabelStyles(darkMode)}>{d.name}</p>
+                              <p css={studentKpiNumberStyles(darkMode)}>{courseLoading ? '...' : count}</p>
+                            </div>
+                          </div>
+                        )
+                      })
+                    : null}
+                </div>
+              </div>
+
+              <div css={studentSearchStyles(darkMode)}>
+                <HiOutlineMagnifyingGlass />
+                <input
+                  type="text"
+                  placeholder="Search courses..."
+                  value={courseSearch}
+                  onChange={(e) => setCourseSearch(e.target.value)}
+                />
+              </div>
+
+              <table css={deptTableStyles(darkMode)}>
+                <thead>
+                  <tr>
+                    <th css={deptTableThStyles(darkMode)}>Course Code</th>
+                    <th css={deptTableThStyles(darkMode)}>Course Name</th>
+                    <th css={deptTableThStyles(darkMode)}>Department</th>
+                    <th css={deptTableThStyles(darkMode)}>Lecturer</th>
+                    <th css={deptTableThStyles(darkMode)}>Credits</th>
+                    <th css={deptTableThStyles(darkMode)}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {courseLoading ? (
+                    <tr>
+                      <td css={deptTableTdStyles(darkMode)} colSpan={6}>
+                        Loading...
+                      </td>
+                    </tr>
+                  ) : filteredCourses.length === 0 ? (
+                    <tr>
+                      <td css={deptTableTdStyles(darkMode)} colSpan={6}>
+                        No courses found.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredCourses.map((c) => (
+                      <tr key={c.id}>
+                        <td css={deptTableTdStyles(darkMode)}>{c.course_code}</td>
+                        <td css={deptTableTdStyles(darkMode)}>{c.course_name}</td>
+                        <td css={deptTableTdStyles(darkMode)}>{c.department || '—'}</td>
+                        <td css={deptTableTdStyles(darkMode)}>{c.lecturer_name || '—'}</td>
+                        <td css={deptTableTdStyles(darkMode)}>
+                          <span css={creditsBadgeStyles(darkMode)}>{Number(c.credits) || 0} credits</span>
+                        </td>
+                        <td css={deptTableTdStyles(darkMode)}>
+                          <div css={deptActionsStyles}>
+                            <button
+                              type="button"
+                              css={deptActionBtnStyles(darkMode)}
+                              onClick={() => openEditCourse(c)}
+                              title="Edit"
+                            >
+                              <HiOutlinePencil />
+                            </button>
+                            <button
+                              type="button"
+                              css={deptDeleteBtnStyles(darkMode)}
+                              onClick={() => deleteCourse(c.id)}
+                              title="Delete"
+                            >
+                              <HiOutlineTrash />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </>
           )}
+
+          {activeNav === 'degrees' && (
+            <>
+              <div css={deptHeaderStyles}>
+                <div css={deptTitleBlockStyles}>
+                  <h1 css={deptTitleStyles}>Degrees</h1>
+                  <p css={deptSubtitleStyles(darkMode)}>Create, view, edit, and delete degrees.</p>
+                </div>
+                <button type="button" css={addDeptBtnStyles} onClick={openAddDegree}>
+                  + Add Degree
+                </button>
+              </div>
+
+              <div css={studentSearchStyles(darkMode)}>
+                <HiOutlineMagnifyingGlass />
+                <input
+                  type="text"
+                  placeholder="Search degrees..."
+                  value={degreeSearch}
+                  onChange={(e) => setDegreeSearch(e.target.value)}
+                />
+              </div>
+
+              <table css={deptTableStyles(darkMode)}>
+                <thead>
+                  <tr>
+                    <th css={deptTableThStyles(darkMode)}>Code</th>
+                    <th css={deptTableThStyles(darkMode)}>Name</th>
+                    <th css={deptTableThStyles(darkMode)}>Department</th>
+                    <th css={deptTableThStyles(darkMode)}>Description</th>
+                    <th css={deptTableThStyles(darkMode)}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {degreeLoading ? (
+                    <tr>
+                      <td css={deptTableTdStyles(darkMode)} colSpan={5}>
+                        Loading...
+                      </td>
+                    </tr>
+                  ) : filteredDegrees.length === 0 ? (
+                    <tr>
+                      <td css={deptTableTdStyles(darkMode)} colSpan={5}>
+                        No degrees found.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredDegrees.map((d) => (
+                      <tr key={d.id}>
+                        <td css={deptTableTdStyles(darkMode)}>{d.code}</td>
+                        <td css={deptTableTdStyles(darkMode)}>{d.name}</td>
+                        <td css={deptTableTdStyles(darkMode)}>{d.department || '—'}</td>
+                        <td css={deptTableTdStyles(darkMode)}>{d.description || '—'}</td>
+                        <td css={deptTableTdStyles(darkMode)}>
+                          <div css={deptActionsStyles}>
+                            <button
+                              type="button"
+                              css={deptActionBtnStyles(darkMode)}
+                              onClick={() => openEditDegree(d)}
+                              title="Edit"
+                            >
+                              <HiOutlinePencil />
+                            </button>
+                            <button
+                              type="button"
+                              css={deptDeleteBtnStyles(darkMode)}
+                              onClick={() => deleteDegree(d.id)}
+                              title="Delete"
+                            >
+                              <HiOutlineTrash />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </>
+          )}
+
           {activeNav === 'departments' && (
             <>
               <div css={deptHeaderStyles}>
@@ -1728,6 +2224,21 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
                 </select>
               </div>
               <div css={modalFieldStyles}>
+                <label css={modalLabelStyles(darkMode)}>Degree</label>
+                <select
+                  css={modalInputStyles(darkMode)}
+                  value={studentForm.degree}
+                  onChange={(e) => setStudentForm((f) => ({ ...f, degree: e.target.value }))}
+                >
+                  <option value="">Select degree</option>
+                  {degrees.map((d) => (
+                    <option key={d.id} value={d.code}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div css={modalFieldStyles}>
                 <label css={modalLabelStyles(darkMode)}>Year</label>
                 <select
                   css={modalInputStyles(darkMode)}
@@ -1823,6 +2334,171 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
               </button>
               <button type="button" css={modalSubmitBtnStyles} onClick={saveLecturer} disabled={lecturerSaving}>
                 {lecturerSaving ? 'Saving...' : lecturerEditId ? 'Update Lecturer' : 'Add Lecturer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {courseModalOpen && (
+        <div css={modalOverlayStyles} onClick={closeCourseModal}>
+          <div css={modalStyles(darkMode)} onClick={(e) => e.stopPropagation()}>
+            <div css={modalHeaderStyles(darkMode)}>
+              <h3 css={modalTitleStyles(darkMode)}>{courseEditId ? 'Edit Course' : 'Add Course'}</h3>
+              <button type="button" css={modalCloseBtnStyles(darkMode)} onClick={closeCourseModal} aria-label="Close">
+                <HiOutlineXMark />
+              </button>
+            </div>
+
+            <div css={modalBodyStyles}>
+              <div css={modalFieldStyles}>
+                <label css={modalLabelStyles(darkMode)}>Course Code *</label>
+                <input
+                  type="text"
+                  css={modalInputStyles(darkMode)}
+                  placeholder="e.g. CS201"
+                  value={courseForm.course_code}
+                  onChange={(e) => setCourseForm((f) => ({ ...f, course_code: e.target.value }))}
+                  readOnly={!!courseEditId}
+                />
+              </div>
+
+              <div css={modalFieldStyles}>
+                <label css={modalLabelStyles(darkMode)}>Course Name *</label>
+                <input
+                  type="text"
+                  css={modalInputStyles(darkMode)}
+                  placeholder="e.g. Data Structures and Algorithms"
+                  value={courseForm.course_name}
+                  onChange={(e) => setCourseForm((f) => ({ ...f, course_name: e.target.value }))}
+                />
+              </div>
+
+              <div css={modalFieldStyles}>
+                <label css={modalLabelStyles(darkMode)}>Department</label>
+                <select
+                  css={modalInputStyles(darkMode)}
+                  value={courseForm.department}
+                  onChange={(e) => setCourseForm((f) => ({ ...f, department: e.target.value }))}
+                >
+                  <option value="">Select department</option>
+                  {departmentsForSelect.map((d) => (
+                    <option key={d.id} value={d.name}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div css={modalFieldStyles}>
+                <label css={modalLabelStyles(darkMode)}>Lecturer</label>
+                <select
+                  css={modalInputStyles(darkMode)}
+                  value={courseForm.lecturer_id}
+                  onChange={(e) => setCourseForm((f) => ({ ...f, lecturer_id: e.target.value }))}
+                >
+                  <option value="">Select lecturer</option>
+                  {lecturers
+                    .filter((l) => !courseForm.department || (l.department || '') === courseForm.department)
+                    .map((l) => (
+                      <option key={l.id} value={l.lecturer_id}>
+                        {l.full_name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div css={modalFieldStyles}>
+                <label css={modalLabelStyles(darkMode)}>Credits</label>
+                <input
+                  type="number"
+                  css={modalInputStyles(darkMode)}
+                  placeholder="e.g. 4"
+                  value={courseForm.credits}
+                  onChange={(e) => setCourseForm((f) => ({ ...f, credits: Number(e.target.value) || 0 }))}
+                  min={0}
+                />
+              </div>
+            </div>
+
+            <div css={modalFooterStyles(darkMode)}>
+              <button type="button" css={modalCancelBtnStyles(darkMode)} onClick={closeCourseModal}>
+                Cancel
+              </button>
+              <button type="button" css={modalSubmitBtnStyles} onClick={saveCourse} disabled={courseSaving}>
+                {courseSaving ? 'Saving...' : courseEditId ? 'Update Course' : 'Add Course'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {degreeModalOpen && (
+        <div css={modalOverlayStyles} onClick={closeDegreeModal}>
+          <div css={modalStyles(darkMode)} onClick={(e) => e.stopPropagation()}>
+            <div css={modalHeaderStyles(darkMode)}>
+              <h3 css={modalTitleStyles(darkMode)}>{degreeEditId ? 'Edit Degree' : 'Add Degree'}</h3>
+              <button type="button" css={modalCloseBtnStyles(darkMode)} onClick={closeDegreeModal} aria-label="Close">
+                <HiOutlineXMark />
+              </button>
+            </div>
+
+            <div css={modalBodyStyles}>
+              <div css={modalFieldStyles}>
+                <label css={modalLabelStyles(darkMode)}>Code *</label>
+                <input
+                  type="text"
+                  css={modalInputStyles(darkMode)}
+                  placeholder="e.g. CS"
+                  value={degreeForm.code}
+                  onChange={(e) => setDegreeForm((f) => ({ ...f, code: e.target.value }))}
+                />
+              </div>
+
+              <div css={modalFieldStyles}>
+                <label css={modalLabelStyles(darkMode)}>Name *</label>
+                <input
+                  type="text"
+                  css={modalInputStyles(darkMode)}
+                  placeholder="e.g. BSc Computer Science"
+                  value={degreeForm.name}
+                  onChange={(e) => setDegreeForm((f) => ({ ...f, name: e.target.value }))}
+                />
+              </div>
+
+              <div css={modalFieldStyles}>
+                <label css={modalLabelStyles(darkMode)}>Department</label>
+                <select
+                  css={modalInputStyles(darkMode)}
+                  value={degreeForm.department}
+                  onChange={(e) => setDegreeForm((f) => ({ ...f, department: e.target.value }))}
+                >
+                  <option value="">Select department</option>
+                  {departmentsForSelect.map((d) => (
+                    <option key={d.id} value={d.name}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div css={modalFieldStyles}>
+                <label css={modalLabelStyles(darkMode)}>Description</label>
+                <textarea
+                  css={modalTextareaStyles(darkMode)}
+                  placeholder="Optional description"
+                  value={degreeForm.description}
+                  onChange={(e) => setDegreeForm((f) => ({ ...f, description: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div css={modalFooterStyles(darkMode)}>
+              <button type="button" css={modalCancelBtnStyles(darkMode)} onClick={closeDegreeModal}>
+                Cancel
+              </button>
+              <button type="button" css={modalSubmitBtnStyles} onClick={saveDegree} disabled={degreeSaving}>
+                {degreeSaving ? 'Saving...' : degreeEditId ? 'Update Degree' : 'Add Degree'}
               </button>
             </div>
           </div>

@@ -18,6 +18,7 @@ try {
             password VARCHAR(255) DEFAULT NULL,
             department VARCHAR(255) DEFAULT NULL,
             year VARCHAR(20) DEFAULT NULL,
+            degree VARCHAR(50) DEFAULT NULL,
             gpa DECIMAL(3,2) DEFAULT 0,
             points INT DEFAULT 0,
             attendance DECIMAL(5,2) DEFAULT 0,
@@ -29,6 +30,15 @@ try {
     // Add password column if table existed before (migration for existing installs)
     try {
         $connection->exec("ALTER TABLE strack_students ADD COLUMN password VARCHAR(255) DEFAULT NULL AFTER email");
+    } catch (PDOException $e) {
+        if (strpos($e->getMessage(), 'Duplicate column') === false) {
+            throw $e;
+        }
+    }
+
+    // Add degree column if table existed before (migration for existing installs)
+    try {
+        $connection->exec("ALTER TABLE strack_students ADD COLUMN degree VARCHAR(50) DEFAULT NULL AFTER year");
     } catch (PDOException $e) {
         if (strpos($e->getMessage(), 'Duplicate column') === false) {
             throw $e;
