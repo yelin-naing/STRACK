@@ -23,33 +23,77 @@ if (!$input || !isset($input['email']) || !isset($input['password'])) {
 }
 
 $email = trim($input['email']);
-$password = $input['password'];
+$password = trim((string) $input['password']);
 
-if (empty($email) || empty($password)) {
+if ($email === '' || $password === '') {
     echo json_encode(['success' => false, 'message' => 'Email and password are required']);
     exit();
 }
 
 require_once __DIR__ . '/getConnection.php';
 
+/**
+ * Match stored value whether it is plain text (legacy) or password_hash() output (bcrypt/argon2).
+ */
+function looksLikePasswordHash(string $stored): bool
+{
+    if ($stored === '' || $stored[0] !== '$') {
+        return false;
+    }
+    return strncmp($stored, '$2a$', 4) === 0
+        || strncmp($stored, '$2b$', 4) === 0
+        || strncmp($stored, '$2y$', 4) === 0
+        || strncmp($stored, '$argon2', 7) === 0;
+}
+
+function passwordMatches(string $stored, string $plain): bool
+{
+    $stored = trim($stored);
+    $plain = trim($plain);
+    if ($stored === '' || $plain === '') {
+        return false;
+    }
+    if (looksLikePasswordHash($stored)) {
+        return password_verify($plain, $stored);
+    }
+    $info = password_get_info($stored);
+    if (($info['algo'] ?? 0) !== 0) {
+        return password_verify($plain, $stored);
+    }
+    return $stored === $plain;
+}
+
 try {
     $connection = getConnection();
+    $emailNorm = function_exists('mb_strtolower')
+        ? mb_strtolower($email, 'UTF-8')
+        : strtolower($email);
 
-    // Try strack_accounts first (admin, lecturer, test accounts)
     $stmt = $connection->prepare(
-        "SELECT id, email, full_name, role FROM strack_accounts WHERE email = :email AND password = :password LIMIT 1"
+        "SELECT id, email, full_name, role, `password` AS pwd FROM strack_accounts WHERE LOWER(TRIM(email)) = :email LIMIT 1"
     );
-    $stmt->execute(['email' => $email, 'password' => $password]);
-    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    $stmt->execute(['email' => $emailNorm]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    // If not in accounts, try strack_students (students added via Admin)
+    $user = null;
+    $accountPwd = (string) ($row['pwd'] ?? $row['password'] ?? '');
+    if ($row && passwordMatches($accountPwd, $password)) {
+        $user = [
+            'id' => $row['id'],
+            'email' => $row['email'],
+            'full_name' => $row['full_name'],
+            'role' => $row['role'] ?? 'teacher',
+        ];
+    }
+
     if (!$user) {
         $stmt = $connection->prepare(
-            "SELECT id, email, full_name FROM strack_students WHERE email = :email AND password = :password LIMIT 1"
+            "SELECT id, email, full_name, `password` AS pwd FROM strack_students WHERE LOWER(TRIM(email)) = :email LIMIT 1"
         );
-        $stmt->execute(['email' => $email, 'password' => $password]);
+        $stmt->execute(['email' => $emailNorm]);
         $student = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($student) {
+        $studentPwd = (string) ($student['pwd'] ?? $student['password'] ?? '');
+        if ($student && passwordMatches($studentPwd, $password)) {
             $user = [
                 'id' => 's' . $student['id'],
                 'email' => $student['email'],
@@ -83,9 +127,11 @@ try {
 } catch (PDOException $e) {
     error_log('Login error: ' . $e->getMessage());
     $msg = $e->getMessage();
-    if (strpos($msg, 'strack_accounts') !== false) {
-        echo json_encode(['success' => false, 'message' => 'Table not found. Run setup_accounts.php first.']);
+    if (strpos($msg, 'strack_accounts') !== false || strpos($msg, 'strack_students') !== false) {
+        echo json_encode(['success' => false, 'message' => 'Database tables missing. Run setup_accounts.php and setup_students.php first.']);
+    } elseif (stripos($msg, 'getaddrinfo') !== false || stripos($msg, 'Connection refused') !== false || stripos($msg, '2002') !== false) {
+        echo json_encode(['success' => false, 'message' => 'Cannot reach the database host. Check host in credentials.php (use nuwebspace_db on NUWebSpace).']);
     } else {
-        echo json_encode(['success' => false, 'message' => 'Database error. Check credentials and connection.']);
+        echo json_encode(['success' => false, 'message' => 'Database error. Check credentials.php (host, dbname, username, password).']);
     }
 }

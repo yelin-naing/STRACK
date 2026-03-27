@@ -1,7 +1,8 @@
 /** @jsxImportSource @emotion/react */
 import { css } from '@emotion/react'
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import RewardsStore from './RewardsStore'
 import {
   HiOutlineSquares2X2,
   HiOutlineBookOpen,
@@ -16,6 +17,8 @@ import {
   HiOutlineAcademicCap,
   HiOutlineClock,
 } from 'react-icons/hi2'
+
+const apiBase = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
 
 const themeTransition = '0.35s ease'
 
@@ -320,9 +323,10 @@ function getInitials(name) {
 function Dashboard({ darkMode, onToggleDarkMode }) {
   const navigate = useNavigate()
   const [activeNav, setActiveNav] = useState('dashboard')
+  const [userPoints, setUserPoints] = useState(0)
+  const [userEmail, setUserEmail] = useState('')
 
-  let userName = 'Alex Thompson'
-  let userPoints = 2450
+  let userName = 'Student'
   try {
     const stored = localStorage.getItem('strack_user')
     if (stored) {
@@ -330,6 +334,32 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
       if (user?.name) userName = user.name
     }
   } catch (_) {}
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('strack_user')
+      if (stored) {
+        const user = JSON.parse(stored)
+        if (user?.email) setUserEmail(user.email)
+      }
+    } catch (_) {}
+  }, [])
+
+  const refreshPoints = useCallback(async () => {
+    if (!userEmail) return
+    try {
+      const res = await fetch(
+        `${apiBase}/backend/student_points.php?email=${encodeURIComponent(userEmail)}`,
+        { cache: 'no-store' }
+      )
+      const data = await res.json()
+      if (data.success && typeof data.points === 'number') setUserPoints(data.points)
+    } catch (_) {}
+  }, [userEmail])
+
+  useEffect(() => {
+    refreshPoints()
+  }, [refreshPoints])
 
   const handleLogout = () => {
     try {
@@ -396,6 +426,14 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
       </aside>
 
       <main css={mainStyles(darkMode)}>
+        {activeNav === 'rewards' ? (
+          <RewardsStore
+            darkMode={darkMode}
+            userEmail={userEmail}
+            points={userPoints}
+            onPointsChange={setUserPoints}
+          />
+        ) : (
         <div css={contentStyles(darkMode)}>
           {activeNav === 'dashboard' && (
             <>
@@ -437,14 +475,6 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
               </p>
             </>
           )}
-          {activeNav === 'rewards' && (
-            <>
-              <h1 css={titleStyles}>Rewards</h1>
-              <p css={textStyles}>
-                This is the rewards page. Redeem your points for rewards and see what you can earn.
-              </p>
-            </>
-          )}
           {activeNav === 'profile' && (
             <>
               <h1 css={titleStyles}>Profile</h1>
@@ -454,6 +484,7 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
             </>
           )}
         </div>
+        )}
       </main>
     </div>
   )

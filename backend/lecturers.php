@@ -1,13 +1,10 @@
 <?php
 /**
- * Lecturer API - CRUD for lecturer accounts (role='teacher')
+ * Lecturer API - CRUD for lecturers.
+ * Login credentials live in strack_accounts (role = teacher).
+ * Profile fields (lecturer_id, department, modules) live in strack_lecturers (account_id FK).
  *
- * We store lecturer extra fields in strack_accounts:
- * - lecturer_id
- * - department
- * - modules (currently always 0)
- *
- * Password for newly created lecturers is set to the default temp password 'asd123'.
+ * New lecturers get temp password 'asd123' (bcrypt).
  */
 
 header('Content-Type: application/json');
@@ -29,10 +26,17 @@ try {
     switch ($method) {
         case 'GET':
             $stmt = $connection->query("
-                SELECT id, lecturer_id, full_name, email, department, modules
-                FROM strack_accounts
-                WHERE role = 'teacher'
-                ORDER BY lecturer_id
+                SELECT
+                    a.id,
+                    l.lecturer_id,
+                    a.full_name,
+                    a.email,
+                    l.department,
+                    l.modules
+                FROM strack_accounts a
+                INNER JOIN strack_lecturers l ON l.account_id = a.id
+                WHERE a.role = 'teacher'
+                ORDER BY l.lecturer_id
             ");
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             echo json_encode(['success' => true, 'lecturers' => $rows]);
@@ -51,35 +55,51 @@ try {
                 exit;
             }
 
-            $defaultPassword = 'asd123';
+            $defaultPassword = password_hash('asd123', PASSWORD_BCRYPT);
+
+            $connection->beginTransaction();
 
             $stmt = $connection->prepare("
-                INSERT INTO strack_accounts (lecturer_id, full_name, email, department, modules, password, role)
-                VALUES (:lecturer_id, :full_name, :email, :department, 0, :password, 'teacher')
+                INSERT INTO strack_accounts (email, password, full_name, role)
+                VALUES (:email, :password, :full_name, 'teacher')
                 ON DUPLICATE KEY UPDATE
-                    full_name = VALUES(full_name),
                     password = VALUES(password),
-                    department = VALUES(department),
-                    modules = 0,
+                    full_name = VALUES(full_name),
                     role = 'teacher'
             ");
             $stmt->execute([
-                'lecturer_id' => $lecturerId,
-                'full_name' => $fullName,
                 'email' => $email,
-                'department' => $department,
                 'password' => $defaultPassword,
+                'full_name' => $fullName,
             ]);
 
-            $id = $connection->lastInsertId();
-            // If this was an UPDATE path, lastInsertId() may be 0; fall back by email.
-            if ((int) $id === 0) {
-                $q = $connection->prepare("SELECT id FROM strack_accounts WHERE email = :email AND role = 'teacher' LIMIT 1");
-                $q->execute(['email' => $email]);
-                $id = (int) ($q->fetchColumn() ?: 0);
+            $q = $connection->prepare('SELECT id FROM strack_accounts WHERE LOWER(TRIM(email)) = LOWER(TRIM(:email)) LIMIT 1');
+            $q->execute(['email' => $email]);
+            $accountId = (int) $q->fetchColumn();
+            if ($accountId === 0) {
+                $connection->rollBack();
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => 'Could not resolve account id']);
+                exit;
             }
 
-            echo json_encode(['success' => true, 'id' => (int) $id]);
+            $stmtL = $connection->prepare("
+                INSERT INTO strack_lecturers (account_id, lecturer_id, department, modules)
+                VALUES (:account_id, :lecturer_id, :department, 0)
+                ON DUPLICATE KEY UPDATE
+                    lecturer_id = VALUES(lecturer_id),
+                    department = VALUES(department),
+                    modules = 0
+            ");
+            $stmtL->execute([
+                'account_id' => $accountId,
+                'lecturer_id' => $lecturerId,
+                'department' => $department,
+            ]);
+
+            $connection->commit();
+
+            echo json_encode(['success' => true, 'id' => $accountId]);
             break;
 
         case 'PUT':
@@ -96,23 +116,35 @@ try {
                 exit;
             }
 
+            $connection->beginTransaction();
+
             $stmt = $connection->prepare("
                 UPDATE strack_accounts
-                SET lecturer_id = :lecturer_id,
-                    full_name = :full_name,
-                    email = :email,
-                    department = :department,
-                    modules = 0,
-                    role = 'teacher'
-                WHERE id = :id
+                SET full_name = :full_name,
+                    email = :email
+                WHERE id = :id AND role = 'teacher'
             ");
             $stmt->execute([
                 'id' => $id,
-                'lecturer_id' => $lecturerId,
                 'full_name' => $fullName,
                 'email' => $email,
+            ]);
+
+            $stmtL = $connection->prepare("
+                UPDATE strack_lecturers l
+                INNER JOIN strack_accounts a ON a.id = l.account_id
+                SET l.lecturer_id = :lecturer_id,
+                    l.department = :department,
+                    l.modules = 0
+                WHERE a.id = :id AND a.role = 'teacher'
+            ");
+            $stmtL->execute([
+                'id' => $id,
+                'lecturer_id' => $lecturerId,
                 'department' => $department,
             ]);
+
+            $connection->commit();
 
             echo json_encode(['success' => true]);
             break;
@@ -125,7 +157,7 @@ try {
                 exit;
             }
 
-            $stmt = $connection->prepare("DELETE FROM strack_accounts WHERE id = :id AND role = 'teacher'");
+            $stmt = $connection->prepare('DELETE FROM strack_accounts WHERE id = :id AND role = \'teacher\'');
             $stmt->execute(['id' => $id]);
             echo json_encode(['success' => true]);
             break;
@@ -135,7 +167,9 @@ try {
             echo json_encode(['success' => false, 'error' => 'Method not allowed']);
     }
 } catch (PDOException $e) {
+    if (isset($connection) && $connection->inTransaction()) {
+        $connection->rollBack();
+    }
     http_response_code(500);
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }
-

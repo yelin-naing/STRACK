@@ -59,6 +59,16 @@ try {
                 exit;
             }
 
+            $dup = $connection->prepare(
+                'SELECT id FROM strack_students WHERE LOWER(TRIM(email)) = LOWER(TRIM(:email)) LIMIT 1'
+            );
+            $dup->execute(['email' => $email]);
+            if ($dup->fetch(PDO::FETCH_ASSOC)) {
+                http_response_code(409);
+                echo json_encode(['success' => false, 'error' => 'That email is already used by another student']);
+                exit;
+            }
+
             $stmt = $connection->prepare("
                 INSERT INTO strack_students (student_id, full_name, email, password, department, year, degree, gpa, points, attendance)
                 VALUES (:student_id, :full_name, :email, :password, :department, :year, :degree, 0, 0, 0)
@@ -90,6 +100,16 @@ try {
             if (!$id || !$studentId || !$fullName || !$email) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'Id, student ID, full name and email are required']);
+                exit;
+            }
+
+            $dup = $connection->prepare(
+                'SELECT id FROM strack_students WHERE LOWER(TRIM(email)) = LOWER(TRIM(:email)) AND id <> :id LIMIT 1'
+            );
+            $dup->execute(['email' => $email, 'id' => $id]);
+            if ($dup->fetch(PDO::FETCH_ASSOC)) {
+                http_response_code(409);
+                echo json_encode(['success' => false, 'error' => 'That email is already used by another student']);
                 exit;
             }
 

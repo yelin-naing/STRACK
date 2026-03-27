@@ -45,6 +45,21 @@ try {
         }
     }
 
+    $connection->exec("
+        DELETE s1 FROM strack_students s1
+        INNER JOIN strack_students s2
+          ON LOWER(TRIM(s1.email)) = LOWER(TRIM(s2.email)) AND s1.id < s2.id
+    ");
+    try {
+        $connection->exec('ALTER TABLE strack_students ADD UNIQUE KEY uq_students_email (email)');
+    } catch (PDOException $e) {
+    }
+
+    $connection->exec('UPDATE strack_students SET points = 0');
+    $connection->exec(
+        "UPDATE strack_students SET points = 10000 WHERE LOWER(TRIM(email)) = 'student@uni.ac.uk'"
+    );
+
     echo "<h2>Students setup complete</h2>";
     echo "<p>The <strong>strack_students</strong> table has been created.</p>";
     echo "<p><a href='../'>Go to Strack</a></p>";

@@ -35,9 +35,8 @@ try {
                     COALESCE(a.full_name, c.lecturer_id) as lecturer_name,
                     COALESCE(c.credits, 0) as credits
                 FROM strack_courses c
-                LEFT JOIN strack_accounts a
-                    ON a.lecturer_id = c.lecturer_id
-                   AND a.role = 'teacher'
+                LEFT JOIN strack_lecturers l ON l.lecturer_id = c.lecturer_id
+                LEFT JOIN strack_accounts a ON a.id = l.account_id AND a.role = 'teacher'
                 ORDER BY c.course_code
             ");
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
