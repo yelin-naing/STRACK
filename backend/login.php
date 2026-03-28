@@ -108,21 +108,60 @@ try {
         exit();
     }
 
+    $departmentName = '';
+    $departmentCode = '';
+    if ($row && (($user['role'] ?? '') === 'teacher')) {
+        try {
+            $stmtL = $connection->prepare(
+                'SELECT department FROM strack_lecturers WHERE account_id = :aid LIMIT 1'
+            );
+            $stmtL->execute(['aid' => (int) $row['id']]);
+            $rawDept = $stmtL->fetchColumn();
+            $departmentName = trim((string) ($rawDept ?? ''));
+            if ($departmentName !== '') {
+                $stmtD = $connection->prepare(
+                    'SELECT code, name FROM strack_departments
+                     WHERE name = :n OR code = :c
+                        OR TRIM(name) = TRIM(:n2)
+                        OR TRIM(code) = TRIM(:c2)
+                     LIMIT 1'
+                );
+                $stmtD->execute([
+                    'n' => $departmentName,
+                    'c' => $departmentName,
+                    'n2' => $departmentName,
+                    'c2' => $departmentName,
+                ]);
+                $dr = $stmtD->fetch(PDO::FETCH_ASSOC);
+                if ($dr) {
+                    $departmentName = trim((string) ($dr['name'] ?? $departmentName));
+                    $departmentCode = trim((string) ($dr['code'] ?? ''));
+                }
+            }
+        } catch (Throwable $e) {
+            error_log('Login lecturer department: ' . $e->getMessage());
+        }
+    }
+
     session_start();
     $_SESSION['user_id'] = $user['id'];
     $_SESSION['user_email'] = $user['email'];
     $_SESSION['user_name'] = $user['full_name'] ?? $user['email'];
     $_SESSION['user_role'] = $user['role'] ?? 'student';
 
+    $payloadUser = [
+        'id' => $user['id'],
+        'email' => $user['email'],
+        'name' => $user['full_name'] ?? $user['email'],
+        'role' => $user['role'] ?? 'student',
+        'department' => $departmentName,
+        'department_code' => $departmentCode,
+    ];
+
     echo json_encode([
         'success' => true,
         'message' => 'Login successful',
-        'user' => [
-            'id' => $user['id'],
-            'email' => $user['email'],
-            'name' => $user['full_name'] ?? $user['email'],
-            'role' => $user['role'] ?? 'student',
-        ],
+        'user' => $payloadUser,
     ]);
 } catch (PDOException $e) {
     error_log('Login error: ' . $e->getMessage());

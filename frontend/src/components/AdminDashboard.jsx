@@ -2,6 +2,18 @@
 import { css } from '@emotion/react'
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useMobileDrawer } from '../hooks/useMobileDrawer'
+import {
+  appLayoutStyles,
+  appSidebarStyles,
+  appMobileBackdrop,
+  appMainColumn,
+  appMobileTopBar,
+  appMobileMenuBtn,
+  appMobileTopBarTitle,
+  appSidebarCloseBtn,
+  appMainStyles,
+} from '../styles/appShell'
 import {
   HiOutlineSquares2X2,
   HiOutlineUserGroup,
@@ -17,39 +29,12 @@ import {
   HiOutlineTrash,
   HiOutlineXMark,
   HiOutlineStar,
+  HiOutlineBars3,
 } from 'react-icons/hi2'
 
 const BASE = '/strack'
 
 const themeTransition = '0.35s ease'
-
-const layoutStyles = (darkMode) => css`
-  min-height: 100vh;
-  min-height: 100dvh;
-  background-color: ${darkMode ? '#0f0f0f' : '#F8F8F8'};
-  display: flex;
-  flex-direction: column;
-  transition: background-color ${themeTransition};
-
-  @media (min-width: 768px) {
-    flex-direction: row;
-  }
-`
-
-const sidebarStyles = (darkMode) => css`
-  background-color: ${darkMode ? '#1a1a1a' : '#FFFFFF'};
-  padding: max(1rem, env(safe-area-inset-top)) 1rem 1rem;
-  display: flex;
-  flex-direction: column;
-  box-shadow: ${darkMode ? 'none' : '0 2px 12px rgba(0,0,0,0.06)'};
-  transition: background-color ${themeTransition}, box-shadow ${themeTransition};
-
-  @media (min-width: 768px) {
-    width: 260px;
-    min-height: 100vh;
-    min-height: 100dvh;
-  }
-`
 
 const headerStyles = css`
   display: flex;
@@ -229,18 +214,6 @@ const logoutStyles = css`
     width: 18px;
     height: 18px;
     flex-shrink: 0;
-  }
-`
-
-const mainStyles = (darkMode) => css`
-  flex: 1;
-  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
-  color: ${darkMode ? '#f3f4f6' : '#1a1a1a'};
-  overflow-y: auto;
-  transition: color ${themeTransition};
-
-  @media (min-width: 768px) {
-    padding: 2rem;
   }
 `
 
@@ -944,6 +917,7 @@ function getInitials(name) {
 
 function AdminDashboard({ darkMode, onToggleDarkMode }) {
   const navigate = useNavigate()
+  const { mobileMenuOpen, setMobileMenuOpen, closeMenu } = useMobileDrawer()
   const [activeNav, setActiveNav] = useState('dashboard')
 
   const [departments, setDepartments] = useState([])
@@ -1537,9 +1511,22 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
     navigate('/')
   }
 
+  const goNav = (id) => {
+    setActiveNav(id)
+    closeMenu()
+  }
+
   return (
-    <div css={layoutStyles(darkMode)}>
-      <aside css={sidebarStyles(darkMode)}>
+    <div css={appLayoutStyles(darkMode)}>
+      {mobileMenuOpen ? (
+        <button
+          type="button"
+          css={appMobileBackdrop(darkMode)}
+          onClick={closeMenu}
+          aria-label="Close menu"
+        />
+      ) : null}
+      <aside css={appSidebarStyles(darkMode, mobileMenuOpen)}>
         <header css={headerStyles}>
           <div css={logoStyles}>
             <div css={logoIconStyles(darkMode)}>
@@ -1547,15 +1534,25 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
             </div>
             <span css={logoTextStyles(darkMode)}>Strack</span>
           </div>
-          <button
-            type="button"
-            css={themeToggleStyles(darkMode)}
-            onClick={onToggleDarkMode}
-            aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-            title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {darkMode ? <HiOutlineSun /> : <HiOutlineMoon />}
-          </button>
+          <div css={css`display: flex; align-items: center; gap: 0.15rem; flex-shrink: 0;`}>
+            <button
+              type="button"
+              css={themeToggleStyles(darkMode)}
+              onClick={onToggleDarkMode}
+              aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {darkMode ? <HiOutlineSun /> : <HiOutlineMoon />}
+            </button>
+            <button
+              type="button"
+              css={appSidebarCloseBtn(darkMode)}
+              onClick={closeMenu}
+              aria-label="Close menu"
+            >
+              <HiOutlineXMark />
+            </button>
+          </div>
         </header>
 
         <div css={profileStyles}>
@@ -1572,7 +1569,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
               key={id}
               type="button"
               css={navItemStyles(darkMode, activeNav === id)}
-              onClick={() => setActiveNav(id)}
+              onClick={() => goNav(id)}
             >
               <Icon />
               {label}
@@ -1586,7 +1583,27 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
         </button>
       </aside>
 
-      <main css={mainStyles(darkMode)}>
+      <div css={appMainColumn}>
+        <header css={appMobileTopBar(darkMode)}>
+          <button
+            type="button"
+            css={appMobileMenuBtn(darkMode)}
+            onClick={() => setMobileMenuOpen(true)}
+            aria-label="Open menu"
+          >
+            <HiOutlineBars3 />
+          </button>
+          <span css={appMobileTopBarTitle(darkMode)}>Strack</span>
+          <button
+            type="button"
+            css={themeToggleStyles(darkMode)}
+            onClick={onToggleDarkMode}
+            aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {darkMode ? <HiOutlineSun /> : <HiOutlineMoon />}
+          </button>
+        </header>
+        <main css={appMainStyles(darkMode)}>
         <div css={contentStyles(darkMode, activeNav === 'departments' || activeNav === 'students' || activeNav === 'lecturers' || activeNav === 'courses' || activeNav === 'degrees')}>
           {activeNav === 'dashboard' && (
             <>
@@ -2152,6 +2169,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
           )}
         </div>
       </main>
+      </div>
 
       {studentModalOpen && (
         <div css={modalOverlayStyles} onClick={closeStudentModal}>

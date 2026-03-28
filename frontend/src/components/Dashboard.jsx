@@ -3,6 +3,57 @@ import { css } from '@emotion/react'
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import RewardsStore from './RewardsStore'
+import ProfilePasswordChange from './ProfilePasswordChange'
+import { useMobileDrawer } from '../hooks/useMobileDrawer'
+import {
+  appLayoutStyles,
+  appSidebarStyles,
+  appMobileBackdrop,
+  appMainColumn,
+  appMobileTopBar,
+  appMobileMenuBtn,
+  appMobileTopBarTitle,
+  appSidebarCloseBtn,
+  appMainStyles,
+} from '../styles/appShell'
+import {
+  profilePageWrap,
+  profilePageHeader,
+  profilePageTitle,
+  profilePageSubtitle,
+  profileTopCard,
+  profileTopRow,
+  profileHeadBlock,
+  profileTextCol,
+  profileHeroAvatar,
+  profileTitleName,
+  profileMetaLine,
+  profileBadgeRow,
+  profileBadgeAccent,
+  profileBadgeMuted,
+  editProfileBtn,
+  kpiGrid,
+  kpiCard,
+  kpiLabelRow,
+  kpiLabel,
+  kpiValue,
+  kpiSub,
+  personalCard,
+  personalTitle,
+  personalGrid,
+  personalField,
+  personalFieldBio,
+  personalLabel,
+  personalValue,
+  personalValueIcon,
+  personalValueText,
+  personalInput,
+  personalInputReadonly,
+  personalTextArea,
+  editActions,
+  actionBtn,
+  profileError,
+} from '../styles/profilePageStyles'
 import {
   HiOutlineSquares2X2,
   HiOutlineBookOpen,
@@ -16,39 +67,18 @@ import {
   HiOutlineSun,
   HiOutlineAcademicCap,
   HiOutlineClock,
+  HiOutlineBars3,
+  HiOutlineXMark,
+  HiOutlineEnvelope,
+  HiOutlinePhone,
+  HiOutlineMapPin,
+  HiOutlinePencil,
+  HiOutlineDocumentText,
 } from 'react-icons/hi2'
 
 const apiBase = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
 
 const themeTransition = '0.35s ease'
-
-const layoutStyles = (darkMode) => css`
-  min-height: 100vh;
-  min-height: 100dvh;
-  background-color: ${darkMode ? '#0f0f0f' : '#F8F8F8'};
-  display: flex;
-  flex-direction: column;
-  transition: background-color ${themeTransition};
-
-  @media (min-width: 768px) {
-    flex-direction: row;
-  }
-`
-
-const sidebarStyles = (darkMode) => css`
-  background-color: ${darkMode ? '#1a1a1a' : '#FFFFFF'};
-  padding: max(1rem, env(safe-area-inset-top)) 1rem 1rem;
-  display: flex;
-  flex-direction: column;
-  box-shadow: ${darkMode ? 'none' : '0 2px 12px rgba(0,0,0,0.06)'};
-  transition: background-color ${themeTransition}, box-shadow ${themeTransition};
-
-  @media (min-width: 768px) {
-    width: 260px;
-    min-height: 100vh;
-    min-height: 100dvh;
-  }
-`
 
 const headerStyles = css`
   display: flex;
@@ -262,21 +292,10 @@ const logoutStyles = css`
   }
 `
 
-const mainStyles = (darkMode) => css`
-  flex: 1;
-  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
-  color: ${darkMode ? '#f3f4f6' : '#1a1a1a'};
-  overflow-y: auto;
-  transition: color ${themeTransition};
-
-  @media (min-width: 768px) {
-    padding: 2rem;
-  }
-`
-
-const contentStyles = (darkMode) => css`
-  max-width: 800px;
+const contentStyles = (darkMode, profileTab) => css`
+  max-width: ${profileTab ? 'min(100%, 920px)' : '800px'};
   margin: 0 auto;
+  width: 100%;
 `
 
 const titleStyles = css`
@@ -320,11 +339,42 @@ function getInitials(name) {
   return name.slice(0, 2).toUpperCase()
 }
 
+function formatStudentId(userId) {
+  const id = String(userId || '').trim()
+  if (/^STU/i.test(id)) return id.toUpperCase()
+  if (/^s\d+$/i.test(id)) {
+    const n = Number(id.slice(1))
+    if (Number.isFinite(n)) return `STU${String(n).padStart(3, '0')}`
+  }
+  if (/^\d+$/.test(id)) return `STU${String(Number(id)).padStart(3, '0')}`
+  return 'STU001'
+}
+
+function profileStorageKey(email) {
+  return `strack_profile_extra_${(email || '').toLowerCase()}`
+}
+
+function normalizeUkPhone(value) {
+  const raw = String(value || '').trim().replace(/\s+/g, ' ')
+  if (!raw) return '+44 7700 900123'
+  return raw
+}
+
 function Dashboard({ darkMode, onToggleDarkMode }) {
   const navigate = useNavigate()
+  const { mobileMenuOpen, setMobileMenuOpen, closeMenu } = useMobileDrawer()
   const [activeNav, setActiveNav] = useState('dashboard')
   const [userPoints, setUserPoints] = useState(0)
   const [userEmail, setUserEmail] = useState('')
+  const [studentId, setStudentId] = useState('STU001')
+  const [isEditingProfile, setIsEditingProfile] = useState(false)
+  const [profileErrorMsg, setProfileErrorMsg] = useState('')
+  const [profileInfo, setProfileInfo] = useState({
+    phone: '+44 7700 900123',
+    address: '123 University Avenue, Newcastle',
+    bio: 'Computer Science student passionate about software development.',
+  })
+  const [profileDraft, setProfileDraft] = useState(profileInfo)
 
   let userName = 'Student'
   try {
@@ -341,9 +391,26 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
       if (stored) {
         const user = JSON.parse(stored)
         if (user?.email) setUserEmail(user.email)
+        if (user?.id) setStudentId(formatStudentId(user.id))
       }
     } catch (_) {}
   }, [])
+
+  useEffect(() => {
+    if (!userEmail) return
+    try {
+      const raw = localStorage.getItem(profileStorageKey(userEmail))
+      if (!raw) return
+      const parsed = JSON.parse(raw)
+      const next = {
+        phone: normalizeUkPhone(parsed?.phone),
+        address: String(parsed?.address || profileInfo.address),
+        bio: String(parsed?.bio || profileInfo.bio),
+      }
+      setProfileInfo(next)
+      setProfileDraft(next)
+    } catch (_) {}
+  }, [userEmail])
 
   const refreshPoints = useCallback(async () => {
     if (!userEmail) return
@@ -368,9 +435,55 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
     navigate('/')
   }
 
+  const handleEditStart = () => {
+    setProfileDraft(profileInfo)
+    setProfileErrorMsg('')
+    setIsEditingProfile(true)
+  }
+
+  const handleEditCancel = () => {
+    setProfileDraft(profileInfo)
+    setProfileErrorMsg('')
+    setIsEditingProfile(false)
+  }
+
+  const handleEditSave = () => {
+    const phone = normalizeUkPhone(profileDraft.phone)
+    const isUkLike = /^(\+44\s?7\d{3}\s?\d{6}|07\d{3}\s?\d{6})$/.test(phone.replace(/\s+/g, ' '))
+    if (!isUkLike) {
+      setProfileErrorMsg('Please enter a UK mobile format like +44 7700 900123 or 07700 900123.')
+      return
+    }
+    const next = {
+      phone,
+      address: (profileDraft.address || '').trim() || profileInfo.address,
+      bio: (profileDraft.bio || '').trim() || profileInfo.bio,
+    }
+    setProfileInfo(next)
+    setProfileDraft(next)
+    setProfileErrorMsg('')
+    setIsEditingProfile(false)
+    try {
+      localStorage.setItem(profileStorageKey(userEmail), JSON.stringify(next))
+    } catch (_) {}
+  }
+
+  const goNav = (id) => {
+    setActiveNav(id)
+    closeMenu()
+  }
+
   return (
-    <div css={layoutStyles(darkMode)}>
-      <aside css={sidebarStyles(darkMode)}>
+    <div css={appLayoutStyles(darkMode)}>
+      {mobileMenuOpen ? (
+        <button
+          type="button"
+          css={appMobileBackdrop(darkMode)}
+          onClick={closeMenu}
+          aria-label="Close menu"
+        />
+      ) : null}
+      <aside css={appSidebarStyles(darkMode, mobileMenuOpen)}>
         <header css={headerStyles}>
           <div css={logoStyles}>
             <div css={logoIconStyles(darkMode)}>
@@ -378,15 +491,25 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
             </div>
             <span css={logoTextStyles(darkMode)}>Strack</span>
           </div>
-          <button
-            type="button"
-            css={themeToggleStyles(darkMode)}
-            onClick={onToggleDarkMode}
-            aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-            title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {darkMode ? <HiOutlineSun /> : <HiOutlineMoon />}
-          </button>
+          <div css={css`display: flex; align-items: center; gap: 0.15rem; flex-shrink: 0;`}>
+            <button
+              type="button"
+              css={themeToggleStyles(darkMode)}
+              onClick={onToggleDarkMode}
+              aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {darkMode ? <HiOutlineSun /> : <HiOutlineMoon />}
+            </button>
+            <button
+              type="button"
+              css={appSidebarCloseBtn(darkMode)}
+              onClick={closeMenu}
+              aria-label="Close menu"
+            >
+              <HiOutlineXMark />
+            </button>
+          </div>
         </header>
 
         <div css={profileStyles}>
@@ -411,7 +534,7 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
             <button
               key={id}
               css={navItemStyles(darkMode, activeNav === id)}
-              onClick={() => setActiveNav(id)}
+              onClick={() => goNav(id)}
             >
               <Icon />
               {label}
@@ -425,7 +548,27 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
         </button>
       </aside>
 
-      <main css={mainStyles(darkMode)}>
+      <div css={appMainColumn}>
+        <header css={appMobileTopBar(darkMode)}>
+          <button
+            type="button"
+            css={appMobileMenuBtn(darkMode)}
+            onClick={() => setMobileMenuOpen(true)}
+            aria-label="Open menu"
+          >
+            <HiOutlineBars3 />
+          </button>
+          <span css={appMobileTopBarTitle(darkMode)}>Strack</span>
+          <button
+            type="button"
+            css={themeToggleStyles(darkMode)}
+            onClick={onToggleDarkMode}
+            aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {darkMode ? <HiOutlineSun /> : <HiOutlineMoon />}
+          </button>
+        </header>
+        <main css={appMainStyles(darkMode)}>
         {activeNav === 'rewards' ? (
           <RewardsStore
             darkMode={darkMode}
@@ -434,7 +577,7 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
             onPointsChange={setUserPoints}
           />
         ) : (
-        <div css={contentStyles(darkMode)}>
+        <div css={contentStyles(darkMode, activeNav === 'profile')}>
           {activeNav === 'dashboard' && (
             <>
               <h1 css={titleStyles}>Dashboard</h1>
@@ -476,16 +619,184 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
             </>
           )}
           {activeNav === 'profile' && (
-            <>
-              <h1 css={titleStyles}>Profile</h1>
-              <p css={textStyles}>
-                This is your profile page. Manage your account details, preferences, and settings here.
-              </p>
-            </>
+            <div css={profilePageWrap(darkMode)}>
+              <header css={profilePageHeader}>
+                <h1 css={profilePageTitle(darkMode)}>My Profile</h1>
+                <p css={profilePageSubtitle(darkMode)}>
+                  Manage your personal information and account details.
+                </p>
+              </header>
+
+              <section css={profileTopCard(darkMode)}>
+                <div css={profileTopRow}>
+                  <div css={profileHeadBlock}>
+                    <div css={profileHeroAvatar}>{getInitials(userName)}</div>
+                    <div css={profileTextCol}>
+                      <h2 css={profileTitleName}>{userName}</h2>
+                      <div css={profileMetaLine(darkMode)}>Student ID: {studentId}</div>
+                      <div css={profileMetaLine(darkMode)}>Computer Science</div>
+                      <div css={profileBadgeRow}>
+                        <span css={profileBadgeAccent}>Student</span>
+                        <span css={profileBadgeMuted(darkMode)}>Undergraduate</span>
+                      </div>
+                    </div>
+                  </div>
+                  {!isEditingProfile ? (
+                    <button type="button" css={editProfileBtn} onClick={handleEditStart}>
+                      <HiOutlinePencil aria-hidden />
+                      Edit Profile
+                    </button>
+                  ) : null}
+                </div>
+              </section>
+
+              <section css={kpiGrid} aria-label="Profile statistics">
+                <article css={kpiCard(darkMode)}>
+                  <div css={kpiLabelRow}>
+                    <HiOutlineStar aria-hidden />
+                    <span css={kpiLabel}>Points</span>
+                  </div>
+                  <div css={kpiValue}>{userPoints}</div>
+                  <div css={kpiSub(darkMode)}>Total earned</div>
+                </article>
+                <article css={kpiCard(darkMode)}>
+                  <div css={kpiLabelRow}>
+                    <HiOutlineSparkles aria-hidden />
+                    <span css={kpiLabel}>Badges</span>
+                  </div>
+                  <div css={kpiValue}>3</div>
+                  <div css={kpiSub(darkMode)}>Achievements</div>
+                </article>
+                <article css={kpiCard(darkMode)}>
+                  <div css={kpiLabelRow}>
+                    <HiOutlineBookOpen aria-hidden />
+                    <span css={kpiLabel}>Courses</span>
+                  </div>
+                  <div css={kpiValue}>6</div>
+                  <div css={kpiSub(darkMode)}>Enrolled</div>
+                </article>
+                <article css={kpiCard(darkMode)}>
+                  <div css={kpiLabelRow}>
+                    <HiOutlineChartBar aria-hidden />
+                    <span css={kpiLabel}>Rank</span>
+                  </div>
+                  <div css={kpiValue}>#3</div>
+                  <div css={kpiSub(darkMode)}>Leaderboard</div>
+                </article>
+              </section>
+
+                <section css={personalCard(darkMode)}>
+                  <h2 css={personalTitle(darkMode)}>Personal Information</h2>
+                  <div css={personalGrid}>
+                    <div css={personalField}>
+                      <span css={personalLabel}>Full Name</span>
+                      {isEditingProfile ? (
+                        <input
+                          css={personalInputReadonly(darkMode)}
+                          value={userName}
+                          readOnly
+                          aria-readonly="true"
+                        />
+                      ) : (
+                        <div css={personalValue(darkMode)}>
+                          <span css={personalValueIcon}>
+                            <HiOutlineUser aria-hidden />
+                          </span>
+                          <span css={personalValueText}>{userName}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div css={personalField}>
+                      <span css={personalLabel}>Email Address</span>
+                      {isEditingProfile ? (
+                        <input
+                          css={personalInputReadonly(darkMode)}
+                          value={userEmail || 'student@uni.ac.uk'}
+                          readOnly
+                          aria-readonly="true"
+                        />
+                      ) : (
+                        <div css={personalValue(darkMode)}>
+                          <span css={personalValueIcon}>
+                            <HiOutlineEnvelope aria-hidden />
+                          </span>
+                          <span css={personalValueText}>{userEmail || 'student@uni.ac.uk'}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div css={personalField}>
+                      <span css={personalLabel}>Phone Number</span>
+                      {isEditingProfile ? (
+                        <input
+                          css={personalInput(darkMode)}
+                          value={profileDraft.phone}
+                          onChange={(e) => setProfileDraft((p) => ({ ...p, phone: e.target.value }))}
+                          placeholder="+44 7700 900123"
+                        />
+                      ) : (
+                        <div css={personalValue(darkMode)}>
+                          <span css={personalValueIcon}>
+                            <HiOutlinePhone aria-hidden />
+                          </span>
+                          <span css={personalValueText}>{profileInfo.phone}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div css={personalField}>
+                      <span css={personalLabel}>Address</span>
+                      {isEditingProfile ? (
+                        <input
+                          css={personalInput(darkMode)}
+                          value={profileDraft.address}
+                          onChange={(e) => setProfileDraft((p) => ({ ...p, address: e.target.value }))}
+                        />
+                      ) : (
+                        <div css={personalValue(darkMode)}>
+                          <span css={personalValueIcon}>
+                            <HiOutlineMapPin aria-hidden />
+                          </span>
+                          <span css={personalValueText}>{profileInfo.address}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div css={[personalField, personalFieldBio]}>
+                      <span css={personalLabel}>Bio</span>
+                      {isEditingProfile ? (
+                        <textarea
+                          css={personalTextArea(darkMode)}
+                          value={profileDraft.bio}
+                          onChange={(e) => setProfileDraft((p) => ({ ...p, bio: e.target.value }))}
+                        />
+                      ) : (
+                        <div css={personalValue(darkMode)}>
+                          <span css={personalValueIcon}>
+                            <HiOutlineDocumentText aria-hidden />
+                          </span>
+                          <span css={personalValueText}>{profileInfo.bio}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {isEditingProfile ? (
+                    <div css={editActions(darkMode)}>
+                      <button type="button" css={actionBtn(true)} onClick={handleEditSave}>
+                        Save
+                      </button>
+                      <button type="button" css={actionBtn(false)} onClick={handleEditCancel}>
+                        Cancel
+                      </button>
+                    </div>
+                  ) : null}
+                  {profileErrorMsg ? <div css={profileError(darkMode)}>{profileErrorMsg}</div> : null}
+                </section>
+
+              <ProfilePasswordChange darkMode={darkMode} userEmail={userEmail} />
+            </div>
           )}
         </div>
         )}
       </main>
+      </div>
     </div>
   )
 }
