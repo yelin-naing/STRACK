@@ -32,6 +32,8 @@ import {
   HiOutlineBars3,
 } from 'react-icons/hi2'
 
+import AdminTimetable from './AdminTimetable'
+
 const BASE = '/strack'
 
 const themeTransition = '0.35s ease'
@@ -807,6 +809,24 @@ const modalTextareaStyles = (darkMode) => css`
   resize: vertical;
 `
 
+const modalSelectListStyles = (darkMode) => css`
+  border: 1px solid ${darkMode ? '#404040' : '#e5e7eb'};
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+  max-height: 180px;
+  overflow: auto;
+  background: ${darkMode ? '#262626' : '#fff'};
+`
+
+const modalSelectItemStyles = (darkMode) => css`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.15rem;
+  font-size: 0.88rem;
+  color: ${darkMode ? '#e5e7eb' : '#1f2937'};
+`
+
 const modalFooterStyles = (darkMode) => css`
   display: flex;
   align-items: center;
@@ -986,7 +1006,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
   }, [])
 
   useEffect(() => {
-    if (activeNav === 'students') fetchStudents()
+    if (activeNav === 'students' || activeNav === 'courses') fetchStudents()
     if (activeNav === 'students' || activeNav === 'lecturers' || activeNav === 'courses' || activeNav === 'degrees') fetchDepartmentsForSelect()
   }, [activeNav, fetchStudents, fetchDepartmentsForSelect])
 
@@ -1106,12 +1126,14 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
   const [courseSearch, setCourseSearch] = useState('')
   const [courseModalOpen, setCourseModalOpen] = useState(false)
   const [courseEditId, setCourseEditId] = useState(null)
+  const [courseStudentsView, setCourseStudentsView] = useState(null)
   const [courseForm, setCourseForm] = useState({
     course_code: '',
     course_name: '',
     department: '',
     lecturer_id: '',
     credits: 0,
+    student_ids: [],
   })
   const [courseSaving, setCourseSaving] = useState(false)
 
@@ -1140,6 +1162,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
       department: '',
       lecturer_id: '',
       credits: 0,
+      student_ids: [],
     })
     setCourseModalOpen(true)
   }
@@ -1152,14 +1175,17 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
       department: c.department || '',
       lecturer_id: c.lecturer_id || '',
       credits: Number(c.credits) || 0,
+      student_ids: Array.isArray(c.student_ids) ? c.student_ids.map((id) => Number(id)) : [],
     })
     setCourseModalOpen(true)
   }
 
   const closeCourseModal = () => setCourseModalOpen(false)
+  const closeCourseStudentsModal = () => setCourseStudentsView(null)
+  const openCourseStudentsModal = (course) => setCourseStudentsView(course)
 
   const saveCourse = async () => {
-    const { course_code, course_name, department, lecturer_id, credits } = courseForm
+    const { course_code, course_name, department, lecturer_id, credits, student_ids } = courseForm
     if (!course_code.trim() || !course_name.trim()) return
 
     setCourseSaving(true)
@@ -1175,6 +1201,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
             department: department.trim() || '',
             lecturer_id: lecturer_id.trim() || '',
             credits: Number(credits) || 0,
+            student_ids: Array.isArray(student_ids) ? student_ids : [],
           }),
         })
         const data = await res.json()
@@ -1192,6 +1219,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
             department: department.trim() || '',
             lecturer_id: lecturer_id.trim() || '',
             credits: Number(credits) || 0,
+            student_ids: Array.isArray(student_ids) ? student_ids : [],
           }),
         })
         const data = await res.json()
@@ -1604,7 +1632,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
           </button>
         </header>
         <main css={appMainStyles(darkMode)}>
-        <div css={contentStyles(darkMode, activeNav === 'departments' || activeNav === 'students' || activeNav === 'lecturers' || activeNav === 'courses' || activeNav === 'degrees')}>
+        <div css={contentStyles(darkMode, activeNav === 'departments' || activeNav === 'students' || activeNav === 'lecturers' || activeNav === 'courses' || activeNav === 'degrees' || activeNav === 'calendar')}>
           {activeNav === 'dashboard' && (
             <>
               <h1 css={titleStyles}>Dashboard</h1>
@@ -1933,19 +1961,20 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
                     <th css={deptTableThStyles(darkMode)}>Department</th>
                     <th css={deptTableThStyles(darkMode)}>Lecturer</th>
                     <th css={deptTableThStyles(darkMode)}>Credits</th>
+                    <th css={deptTableThStyles(darkMode)}>Students</th>
                     <th css={deptTableThStyles(darkMode)}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {courseLoading ? (
                     <tr>
-                      <td css={deptTableTdStyles(darkMode)} colSpan={6}>
+                      <td css={deptTableTdStyles(darkMode)} colSpan={7}>
                         Loading...
                       </td>
                     </tr>
                   ) : filteredCourses.length === 0 ? (
                     <tr>
-                      <td css={deptTableTdStyles(darkMode)} colSpan={6}>
+                      <td css={deptTableTdStyles(darkMode)} colSpan={7}>
                         No courses found.
                       </td>
                     </tr>
@@ -1959,8 +1988,17 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
                         <td css={deptTableTdStyles(darkMode)}>
                           <span css={creditsBadgeStyles(darkMode)}>{Number(c.credits) || 0} credits</span>
                         </td>
+                        <td css={deptTableTdStyles(darkMode)}>{Number(c.enrolled_count) || 0}</td>
                         <td css={deptTableTdStyles(darkMode)}>
                           <div css={deptActionsStyles}>
+                            <button
+                              type="button"
+                              css={deptActionBtnStyles(darkMode)}
+                              onClick={() => openCourseStudentsModal(c)}
+                              title="View enrolled students"
+                            >
+                              <HiOutlineUserGroup />
+                            </button>
                             <button
                               type="button"
                               css={deptActionBtnStyles(darkMode)}
@@ -2159,14 +2197,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
               </div>
             </>
           )}
-          {activeNav === 'calendar' && (
-            <>
-              <h1 css={titleStyles}>Calendar</h1>
-              <p css={textStyles}>
-                This is the calendar page. View and manage academic calendar, deadlines, and events here.
-              </p>
-            </>
-          )}
+          {activeNav === 'calendar' && <AdminTimetable darkMode={darkMode} />}
         </div>
       </main>
       </div>
@@ -2397,7 +2428,20 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
                 <select
                   css={modalInputStyles(darkMode)}
                   value={courseForm.department}
-                  onChange={(e) => setCourseForm((f) => ({ ...f, department: e.target.value }))}
+                  onChange={(e) => {
+                    const nextDept = e.target.value
+                    setCourseForm((f) => {
+                      const allowedIds = new Set(
+                        students
+                          .filter((s) => !nextDept || (s.department || '') === nextDept)
+                          .map((s) => Number(s.id))
+                      )
+                      const nextStudentIds = (Array.isArray(f.student_ids) ? f.student_ids : []).filter((sid) =>
+                        allowedIds.has(Number(sid))
+                      )
+                      return { ...f, department: nextDept, student_ids: nextStudentIds }
+                    })
+                  }}
                 >
                   <option value="">Select department</option>
                   {departmentsForSelect.map((d) => (
@@ -2437,6 +2481,40 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
                   min={0}
                 />
               </div>
+
+              <div css={modalFieldStyles}>
+                <label css={modalLabelStyles(darkMode)}>Students who should attend this course</label>
+                <div css={modalSelectListStyles(darkMode)}>
+                  {students.length === 0 ? (
+                    <p css={studentSubtitleStyles(darkMode)} style={{ margin: 0 }}>
+                      No students found.
+                    </p>
+                  ) : (
+                    students
+                      .filter((s) => !courseForm.department || (s.department || '') === courseForm.department)
+                      .map((s) => (
+                        <label key={s.id} css={modalSelectItemStyles(darkMode)}>
+                          <input
+                            type="checkbox"
+                            checked={Array.isArray(courseForm.student_ids) && courseForm.student_ids.includes(Number(s.id))}
+                            onChange={(e) => {
+                              const sid = Number(s.id)
+                              setCourseForm((f) => {
+                                const selected = new Set(Array.isArray(f.student_ids) ? f.student_ids.map((id) => Number(id)) : [])
+                                if (e.target.checked) selected.add(sid)
+                                else selected.delete(sid)
+                                return { ...f, student_ids: Array.from(selected) }
+                              })
+                            }}
+                          />
+                          <span>
+                            {s.full_name} ({s.student_id})
+                          </span>
+                        </label>
+                      ))
+                  )}
+                </div>
+              </div>
             </div>
 
             <div css={modalFooterStyles(darkMode)}>
@@ -2445,6 +2523,52 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
               </button>
               <button type="button" css={modalSubmitBtnStyles} onClick={saveCourse} disabled={courseSaving}>
                 {courseSaving ? 'Saving...' : courseEditId ? 'Update Course' : 'Add Course'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {courseStudentsView && (
+        <div css={modalOverlayStyles} onClick={closeCourseStudentsModal}>
+          <div css={modalStyles(darkMode)} onClick={(e) => e.stopPropagation()}>
+            <div css={modalHeaderStyles(darkMode)}>
+              <h3 css={modalTitleStyles(darkMode)}>
+                Students in {courseStudentsView.course_code || 'Course'}
+              </h3>
+              <button
+                type="button"
+                css={modalCloseBtnStyles(darkMode)}
+                onClick={closeCourseStudentsModal}
+                aria-label="Close"
+              >
+                <HiOutlineXMark />
+              </button>
+            </div>
+            <div css={modalBodyStyles}>
+              <p css={studentSubtitleStyles(darkMode)} style={{ marginTop: 0 }}>
+                {courseStudentsView.course_name || ''} - {Number(courseStudentsView.enrolled_count) || 0} student(s)
+              </p>
+              <div css={modalSelectListStyles(darkMode)}>
+                {Array.isArray(courseStudentsView.students) && courseStudentsView.students.length > 0 ? (
+                  courseStudentsView.students.map((s) => (
+                    <div key={s.id} css={modalSelectItemStyles(darkMode)}>
+                      <HiOutlineUserGroup style={{ width: 16, height: 16, opacity: 0.8 }} />
+                      <span>
+                        {s.full_name} ({s.student_id})
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <p css={studentSubtitleStyles(darkMode)} style={{ margin: 0 }}>
+                    No students assigned yet.
+                  </p>
+                )}
+              </div>
+            </div>
+            <div css={modalFooterStyles(darkMode)}>
+              <button type="button" css={modalCancelBtnStyles(darkMode)} onClick={closeCourseStudentsModal}>
+                Close
               </button>
             </div>
           </div>

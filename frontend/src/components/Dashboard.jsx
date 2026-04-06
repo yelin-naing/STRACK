@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import RewardsStore from './RewardsStore'
 import ProfilePasswordChange from './ProfilePasswordChange'
+import StudentCalendar from './StudentCalendar'
 import { useMobileDrawer } from '../hooks/useMobileDrawer'
 import {
   appLayoutStyles,
@@ -292,8 +293,8 @@ const logoutStyles = css`
   }
 `
 
-const contentStyles = (darkMode, profileTab) => css`
-  max-width: ${profileTab ? 'min(100%, 920px)' : '800px'};
+const contentStyles = (darkMode, profileTab, calendarTab) => css`
+  max-width: ${calendarTab ? 'min(100%, 1280px)' : profileTab ? 'min(100%, 920px)' : '800px'};
   margin: 0 auto;
   width: 100%;
 `
@@ -577,7 +578,7 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
             onPointsChange={setUserPoints}
           />
         ) : (
-        <div css={contentStyles(darkMode, activeNav === 'profile')}>
+        <div css={contentStyles(darkMode, activeNav === 'profile', activeNav === 'calendar')}>
           {activeNav === 'dashboard' && (
             <>
               <h1 css={titleStyles}>Dashboard</h1>
@@ -595,12 +596,7 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
             </>
           )}
           {activeNav === 'calendar' && (
-            <>
-              <h1 css={titleStyles}>Calendar</h1>
-              <p css={textStyles}>
-                This is the calendar page. View your schedule, deadlines, and important dates here.
-              </p>
-            </>
+            <StudentCalendar darkMode={darkMode} userEmail={userEmail} studentId={studentId} />
           )}
           {activeNav === 'leaderboard' && (
             <>

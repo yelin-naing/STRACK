@@ -22,6 +22,16 @@ try {
         )
     ");
 
+    $connection->exec("
+        CREATE TABLE IF NOT EXISTS strack_course_students (
+            course_id INT NOT NULL,
+            student_id INT NOT NULL,
+            PRIMARY KEY (course_id, student_id),
+            CONSTRAINT fk_course_students_course FOREIGN KEY (course_id) REFERENCES strack_courses (id) ON DELETE CASCADE,
+            CONSTRAINT fk_course_students_student FOREIGN KEY (student_id) REFERENCES strack_students (id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
+
     // Migrations for existing installs
     try {
         $connection->exec("ALTER TABLE strack_courses ADD COLUMN department VARCHAR(255) DEFAULT NULL");
@@ -40,7 +50,7 @@ try {
     }
 
     echo "<h2>Courses setup complete</h2>";
-    echo "<p>The <strong>strack_courses</strong> table has been created.</p>";
+    echo "<p>The <strong>strack_courses</strong> and <strong>strack_course_students</strong> tables are ready.</p>";
     echo "<p><a href='../'>Go to Strack</a></p>";
 } catch (PDOException $e) {
     echo "<h2>Error</h2><p>" . htmlspecialchars($e->getMessage()) . "</p>";
