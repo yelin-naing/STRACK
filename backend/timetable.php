@@ -188,7 +188,7 @@ try {
                     echo json_encode(['success' => false, 'error' => 'event_title is required for events']);
                     exit;
                 }
-                $courseId = null;
+                $courseId = $courseId > 0 ? $courseId : null;
             }
 
             $connection->beginTransaction();
@@ -281,7 +281,7 @@ try {
                     echo json_encode(['success' => false, 'error' => 'event_title is required for events']);
                     exit;
                 }
-                $courseId = null;
+                $courseId = $courseId > 0 ? $courseId : null;
             }
 
             $connection->beginTransaction();

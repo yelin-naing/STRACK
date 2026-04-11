@@ -5,6 +5,9 @@ import { useNavigate } from 'react-router-dom'
 import RewardsStore from './RewardsStore'
 import ProfilePasswordChange from './ProfilePasswordChange'
 import StudentCalendar from './StudentCalendar'
+import StudentBadges from './StudentBadges'
+import StudentCourses from './StudentCourses'
+import StudentLeaderboard from './StudentLeaderboard'
 import { useMobileDrawer } from '../hooks/useMobileDrawer'
 import {
   appLayoutStyles,
@@ -293,8 +296,8 @@ const logoutStyles = css`
   }
 `
 
-const contentStyles = (darkMode, profileTab, calendarTab) => css`
-  max-width: ${calendarTab ? 'min(100%, 1280px)' : profileTab ? 'min(100%, 920px)' : '800px'};
+const contentStyles = (darkMode, profileTab, wideTab) => css`
+  max-width: ${wideTab ? 'min(100%, 1280px)' : profileTab ? 'min(100%, 920px)' : '800px'};
   margin: 0 auto;
   width: 100%;
 `
@@ -578,7 +581,13 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
             onPointsChange={setUserPoints}
           />
         ) : (
-        <div css={contentStyles(darkMode, activeNav === 'profile', activeNav === 'calendar')}>
+        <div
+          css={contentStyles(
+            darkMode,
+            activeNav === 'profile',
+            activeNav === 'calendar' || activeNav === 'courses' || activeNav === 'leaderboard'
+          )}
+        >
           {activeNav === 'dashboard' && (
             <>
               <h1 css={titleStyles}>Dashboard</h1>
@@ -588,31 +597,14 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
             </>
           )}
           {activeNav === 'courses' && (
-            <>
-              <h1 css={titleStyles}>Courses</h1>
-              <p css={textStyles}>
-                This is the courses page. View your enrolled courses, materials, and grades here.
-              </p>
-            </>
+            <StudentCourses darkMode={darkMode} userEmail={userEmail} studentId={studentId} />
           )}
           {activeNav === 'calendar' && (
             <StudentCalendar darkMode={darkMode} userEmail={userEmail} studentId={studentId} />
           )}
-          {activeNav === 'leaderboard' && (
-            <>
-              <h1 css={titleStyles}>Leaderboard</h1>
-              <p css={textStyles}>
-                This is the leaderboard page. See how you rank against other students and track your position.
-              </p>
-            </>
-          )}
+          {activeNav === 'leaderboard' && <StudentLeaderboard darkMode={darkMode} userEmail={userEmail} />}
           {activeNav === 'badges' && (
-            <>
-              <h1 css={titleStyles}>Badges</h1>
-              <p css={textStyles}>
-                This is the badges page. View and collect achievement badges earned from your activities.
-              </p>
-            </>
+            <StudentBadges darkMode={darkMode} />
           )}
           {activeNav === 'profile' && (
             <div css={profilePageWrap(darkMode)}>

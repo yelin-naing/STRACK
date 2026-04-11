@@ -7,6 +7,8 @@ import {
   HiOutlineCalendar,
   HiOutlineClock,
   HiOutlineMapPin,
+  HiOutlineXMark,
+  HiOutlineUser,
 } from 'react-icons/hi2'
 
 const BASE = '/strack'
@@ -172,6 +174,7 @@ const eventCardStyles = (darkMode, type) => css`
   border-radius: 10px;
   padding: 0.7rem 0.8rem;
   margin-bottom: 0.55rem;
+  cursor: pointer;
 `
 
 const eventNameStyles = css`
@@ -245,6 +248,83 @@ const emptyTextStyles = (darkMode) => css`
   font-size: 0.9rem;
 `
 
+const modalOverlayStyles = css`
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+`
+
+const modalBoxStyles = (darkMode) => css`
+  width: 100%;
+  max-width: 520px;
+  border-radius: 12px;
+  background: ${darkMode ? '#1a1a1a' : '#fff'};
+  border: 1px solid ${darkMode ? '#404040' : '#e5e7eb'};
+  box-shadow: 0 24px 30px -12px rgba(0, 0, 0, 0.25);
+`
+
+const modalHeaderStyles = (darkMode) => css`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.1rem;
+  border-bottom: 1px solid ${darkMode ? '#404040' : '#e5e7eb'};
+`
+
+const modalTitleStyles = (darkMode) => css`
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: ${darkMode ? '#f9fafb' : '#111827'};
+`
+
+const modalCloseBtnStyles = (darkMode) => css`
+  border: none;
+  background: transparent;
+  color: ${darkMode ? '#d1d5db' : '#4b5563'};
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  &:hover {
+    background: ${darkMode ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)'};
+  }
+
+  svg {
+    width: 19px;
+    height: 19px;
+  }
+`
+
+const modalBodyStyles = css`
+  padding: 1rem 1.1rem 1.2rem;
+`
+
+const detailRowStyles = (darkMode) => css`
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0;
+  color: ${darkMode ? '#d1d5db' : '#4b5563'};
+  font-size: 0.9rem;
+
+  svg {
+    width: 16px;
+    height: 16px;
+    color: ${darkMode ? '#a5b4fc' : ACCENT};
+    flex-shrink: 0;
+  }
+`
+
 function StudentCalendar({ darkMode, userEmail, studentId }) {
   const [monthCursor, setMonthCursor] = useState(new Date())
   const [entries, setEntries] = useState([])
@@ -253,6 +333,7 @@ function StudentCalendar({ darkMode, userEmail, studentId }) {
   const [allowedCourseIds, setAllowedCourseIds] = useState([])
   const [degreeName, setDegreeName] = useState('')
   const [courseFilterReady, setCourseFilterReady] = useState(false)
+  const [detailEvent, setDetailEvent] = useState(null)
 
   const today = useMemo(() => {
     const d = new Date()
@@ -395,6 +476,7 @@ function StudentCalendar({ darkMode, userEmail, studentId }) {
 
   const goPrevMonth = () => setMonthCursor((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))
   const goNextMonth = () => setMonthCursor((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))
+  const closeDetailModal = () => setDetailEvent(null)
 
   return (
     <div css={wrapStyles}>
@@ -454,19 +536,30 @@ function StudentCalendar({ darkMode, userEmail, studentId }) {
         ) : (
           selectedEvents.map((ev) => (
             <div key={ev.id} css={eventCardStyles(darkMode, ev.entry_type)}>
-              <p css={eventNameStyles}>{ev.entry_type === 'class' ? ev.course_name || ev.course_code : ev.event_title}</p>
-              <div css={eventMetaStyles(darkMode)}>
-                <span>
-                  <HiOutlineClock />
-                  {fmtTime(ev.start_time)}
-                </span>
-                {(ev.room_location || '').trim() ? (
+              <button
+                type="button"
+                onClick={() => setDetailEvent(ev)}
+                css={css`
+                  all: unset;
+                  display: block;
+                  width: 100%;
+                  cursor: pointer;
+                `}
+              >
+                <p css={eventNameStyles}>{ev.entry_type === 'class' ? ev.course_name || ev.course_code : ev.event_title}</p>
+                <div css={eventMetaStyles(darkMode)}>
                   <span>
-                    <HiOutlineMapPin />
-                    {ev.room_location}
+                    <HiOutlineClock />
+                    {fmtTime(ev.start_time)}
                   </span>
-                ) : null}
-              </div>
+                  {(ev.room_location || '').trim() ? (
+                    <span>
+                      <HiOutlineMapPin />
+                      {ev.room_location}
+                    </span>
+                  ) : null}
+                </div>
+              </button>
             </div>
           ))
         )}
@@ -483,19 +576,30 @@ function StudentCalendar({ darkMode, userEmail, studentId }) {
           ) : (
             todaysEvents.map((ev) => (
               <div key={`today-${ev.id}`} css={eventCardStyles(darkMode, ev.entry_type)}>
-                <p css={eventNameStyles}>{ev.entry_type === 'class' ? ev.course_name || ev.course_code : ev.event_title}</p>
-                <div css={eventMetaStyles(darkMode)}>
-                  <span>
-                    <HiOutlineClock />
-                    {fmtTime(ev.start_time)}
-                  </span>
-                  {(ev.room_location || '').trim() ? (
+                <button
+                  type="button"
+                  onClick={() => setDetailEvent(ev)}
+                  css={css`
+                    all: unset;
+                    display: block;
+                    width: 100%;
+                    cursor: pointer;
+                  `}
+                >
+                  <p css={eventNameStyles}>{ev.entry_type === 'class' ? ev.course_name || ev.course_code : ev.event_title}</p>
+                  <div css={eventMetaStyles(darkMode)}>
                     <span>
-                      <HiOutlineMapPin />
-                      {ev.room_location}
+                      <HiOutlineClock />
+                      {fmtTime(ev.start_time)}
                     </span>
-                  ) : null}
-                </div>
+                    {(ev.room_location || '').trim() ? (
+                      <span>
+                        <HiOutlineMapPin />
+                        {ev.room_location}
+                      </span>
+                    ) : null}
+                  </div>
+                </button>
               </div>
             ))
           )}
@@ -511,27 +615,97 @@ function StudentCalendar({ darkMode, userEmail, studentId }) {
           ) : (
             upcoming.map((ev) => (
               <div key={`up-${ev.id}`} css={upcomingItemStyles(darkMode)}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <strong style={{ fontSize: '0.92rem' }}>
-                    {ev.entry_type === 'class' ? ev.course_name || ev.course_code : ev.event_title}
-                  </strong>
-                  <span css={upcomingTypeStyles(darkMode)}>{ev.entry_type === 'class' ? 'Lecture' : 'Event'}</span>
-                </div>
-                <div css={eventMetaStyles(darkMode)} style={{ marginTop: '0.25rem' }}>
-                  <span>
-                    <HiOutlineCalendar />
-                    {parseYMD(ev.entry_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                  </span>
-                  <span>
-                    <HiOutlineClock />
-                    {fmtTime(ev.start_time)}
-                  </span>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setDetailEvent(ev)}
+                  css={css`
+                    all: unset;
+                    display: block;
+                    width: 100%;
+                    cursor: pointer;
+                  `}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <strong style={{ fontSize: '0.92rem' }}>
+                      {ev.entry_type === 'class' ? ev.course_name || ev.course_code : ev.event_title}
+                    </strong>
+                    <span css={upcomingTypeStyles(darkMode)}>{ev.entry_type === 'class' ? 'Lecture' : 'Event'}</span>
+                  </div>
+                  <div css={eventMetaStyles(darkMode)} style={{ marginTop: '0.25rem' }}>
+                    <span>
+                      <HiOutlineCalendar />
+                      {parseYMD(ev.entry_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </span>
+                    <span>
+                      <HiOutlineClock />
+                      {fmtTime(ev.start_time)}
+                    </span>
+                  </div>
+                </button>
               </div>
             ))
           )}
         </div>
       </div>
+
+      {detailEvent ? (
+        <div css={modalOverlayStyles} onClick={closeDetailModal}>
+          <div css={modalBoxStyles(darkMode)} onClick={(e) => e.stopPropagation()}>
+            <div css={modalHeaderStyles(darkMode)}>
+              <h3 css={modalTitleStyles(darkMode)}>Event Details</h3>
+              <button type="button" css={modalCloseBtnStyles(darkMode)} onClick={closeDetailModal} aria-label="Close">
+                <HiOutlineXMark />
+              </button>
+            </div>
+            <div css={modalBodyStyles}>
+              <p css={eventNameStyles} style={{ marginBottom: '0.45rem' }}>
+                {detailEvent.entry_type === 'class'
+                  ? detailEvent.course_name || detailEvent.course_code
+                  : detailEvent.event_title || 'Event'}
+              </p>
+              <div css={detailRowStyles(darkMode)}>
+                <HiOutlineCalendar />
+                <span>
+                  {parseYMD(detailEvent.entry_date).toLocaleDateString(undefined, {
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}
+                </span>
+              </div>
+              <div css={detailRowStyles(darkMode)}>
+                <HiOutlineClock />
+                <span>
+                  {fmtTime(detailEvent.start_time)} - {fmtTime(detailEvent.end_time)}
+                </span>
+              </div>
+              <div css={detailRowStyles(darkMode)}>
+                <HiOutlineMapPin />
+                <span>{(detailEvent.room_location || '').trim() || 'Location not specified'}</span>
+              </div>
+              {(detailEvent.lecturers || []).length > 0 ? (
+                <div css={detailRowStyles(darkMode)}>
+                  <HiOutlineUser />
+                  <span>{detailEvent.lecturers.map((l) => l.full_name).join(', ')}</span>
+                </div>
+              ) : null}
+              {detailEvent.entry_type === 'event' && detailEvent.event_description ? (
+                <p
+                  css={css`
+                    margin: 0.7rem 0 0;
+                    font-size: 0.9rem;
+                    line-height: 1.45;
+                    color: ${darkMode ? '#d1d5db' : '#374151'};
+                  `}
+                >
+                  {detailEvent.event_description}
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -45,6 +45,15 @@ try {
         }
     }
 
+    // Graduation year (e.g. 2027) — shown as "Class of" in admin
+    try {
+        $connection->exec("ALTER TABLE strack_students ADD COLUMN class_of VARCHAR(10) DEFAULT NULL AFTER degree");
+    } catch (PDOException $e) {
+        if (strpos($e->getMessage(), 'Duplicate column') === false) {
+            throw $e;
+        }
+    }
+
     $connection->exec("
         DELETE s1 FROM strack_students s1
         INNER JOIN strack_students s2

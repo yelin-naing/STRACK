@@ -23,12 +23,21 @@ $method = $_SERVER['REQUEST_METHOD'];
 try {
     $connection = getConnection();
 
+    // Ensure class_of exists (older databases)
+    try {
+        $connection->exec('ALTER TABLE strack_students ADD COLUMN class_of VARCHAR(10) DEFAULT NULL AFTER degree');
+    } catch (PDOException $e) {
+        if (strpos($e->getMessage(), 'Duplicate column') === false) {
+            throw $e;
+        }
+    }
+
     switch ($method) {
         case 'GET':
             $stmt = $connection->query("
                 SELECT id, student_id, full_name, email, 
                        COALESCE(`password`, '') as student_pwd,
-                       department, year, degree,
+                       department, year, degree, class_of,
                        COALESCE(gpa, 0) as gpa, COALESCE(points, 0) as points, COALESCE(attendance, 0) as attendance
                 FROM strack_students 
                 ORDER BY student_id
@@ -52,6 +61,7 @@ try {
             $department = trim($input['department'] ?? '');
             $year = trim($input['year'] ?? '');
             $degree = trim($input['degree'] ?? '');
+            $classOf = trim($input['class_of'] ?? '');
 
             if (!$studentId || !$fullName || !$email || !$password) {
                 http_response_code(400);
@@ -70,8 +80,8 @@ try {
             }
 
             $stmt = $connection->prepare("
-                INSERT INTO strack_students (student_id, full_name, email, password, department, year, degree, gpa, points, attendance)
-                VALUES (:student_id, :full_name, :email, :password, :department, :year, :degree, 0, 0, 0)
+                INSERT INTO strack_students (student_id, full_name, email, password, department, year, degree, class_of, gpa, points, attendance)
+                VALUES (:student_id, :full_name, :email, :password, :department, :year, :degree, :class_of, 0, 0, 0)
             ");
             $stmt->execute([
                 'student_id' => $studentId,
@@ -81,6 +91,7 @@ try {
                 'department' => $department ?: null,
                 'year' => $year ?: null,
                 'degree' => $degree ?: null,
+                'class_of' => $classOf !== '' ? $classOf : null,
             ]);
             $id = $connection->lastInsertId();
             echo json_encode(['success' => true, 'id' => (int) $id]);
@@ -96,6 +107,7 @@ try {
             $department = trim($input['department'] ?? '');
             $year = trim($input['year'] ?? '');
             $degree = trim($input['degree'] ?? '');
+            $classOf = trim($input['class_of'] ?? '');
 
             if (!$id || !$studentId || !$fullName || !$email) {
                 http_response_code(400);
@@ -117,7 +129,7 @@ try {
                 $stmt = $connection->prepare("
                     UPDATE strack_students 
                     SET student_id = :student_id, full_name = :full_name, email = :email, password = :password,
-                        department = :department, year = :year, degree = :degree
+                        department = :department, year = :year, degree = :degree, class_of = :class_of
                     WHERE id = :id
                 ");
                 $stmt->execute([
@@ -129,12 +141,13 @@ try {
                     'department' => $department ?: null,
                     'year' => $year ?: null,
                     'degree' => $degree ?: null,
+                    'class_of' => $classOf !== '' ? $classOf : null,
                 ]);
             } else {
                 $stmt = $connection->prepare("
                     UPDATE strack_students 
                     SET student_id = :student_id, full_name = :full_name, email = :email, 
-                        department = :department, year = :year, degree = :degree
+                        department = :department, year = :year, degree = :degree, class_of = :class_of
                     WHERE id = :id
                 ");
                 $stmt->execute([
@@ -145,6 +158,7 @@ try {
                     'department' => $department ?: null,
                     'year' => $year ?: null,
                     'degree' => $degree ?: null,
+                    'class_of' => $classOf !== '' ? $classOf : null,
                 ]);
             }
             echo json_encode(['success' => true]);

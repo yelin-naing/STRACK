@@ -99,7 +99,8 @@ try {
                     cs.course_id,
                     s.id as student_id,
                     s.student_id as student_code,
-                    s.full_name as student_name
+                    s.full_name as student_name,
+                    s.email as student_email
                 FROM strack_course_students cs
                 INNER JOIN strack_students s ON s.id = cs.student_id
                 ORDER BY s.student_id
@@ -114,6 +115,7 @@ try {
                     'id' => (int) $r['student_id'],
                     'student_id' => $r['student_code'],
                     'full_name' => $r['student_name'],
+                    'email' => $r['student_email'] ?? '',
                 ];
             }
 

@@ -782,6 +782,13 @@ const modalLabelStyles = (darkMode) => css`
   transition: color ${themeTransition};
 `
 
+const modalHintStyles = (darkMode) => css`
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  color: ${darkMode ? '#9ca3af' : '#6b7280'};
+  line-height: 1.35;
+`
+
 const modalInputStyles = (darkMode) => css`
   width: 100%;
   padding: 0.5rem 0.75rem;
@@ -978,6 +985,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
     department: '',
     year: '',
     degree: '',
+    class_of: '',
   })
   const [studentSaving, setStudentSaving] = useState(false)
   const [departmentsForSelect, setDepartmentsForSelect] = useState([])
@@ -1365,7 +1373,16 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
   const openAddStudent = () => {
     setStudentEditId(null)
     // Default temporary password for all newly created students
-    setStudentForm({ student_id: '', full_name: '', email: '', password: 'asd123', department: '', year: '', degree: '' })
+    setStudentForm({
+      student_id: '',
+      full_name: '',
+      email: '',
+      password: 'asd123',
+      department: '',
+      year: '',
+      degree: '',
+      class_of: '',
+    })
     setStudentModalOpen(true)
   }
 
@@ -1380,6 +1397,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
       department: s.department || '',
       year: s.year || '',
       degree: s.degree || '',
+      class_of: s.class_of != null && s.class_of !== '' ? String(s.class_of) : '',
     })
     setStudentModalOpen(true)
   }
@@ -1387,7 +1405,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
   const closeStudentModal = () => setStudentModalOpen(false)
 
   const saveStudent = async () => {
-    const { student_id, full_name, email, password, department, year, degree } = studentForm
+    const { student_id, full_name, email, password, department, year, degree, class_of } = studentForm
     if (!student_id.trim() || !full_name.trim() || !email.trim()) return
     if (!studentEditId && !password.trim()) return
     setStudentSaving(true)
@@ -1405,6 +1423,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
             department: department.trim() || '',
             year: year.trim() || '',
             degree: degree.trim() || '',
+            class_of: class_of.trim() || '',
           }),
         })
         const data = await res.json()
@@ -1424,6 +1443,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
             department: department.trim() || '',
             year: year.trim() || '',
             degree: degree.trim() || '',
+            class_of: class_of.trim() || '',
           }),
         })
         const data = await res.json()
@@ -1453,7 +1473,10 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
       (s.full_name || '').toLowerCase().includes(studentSearch.toLowerCase()) ||
       (s.email || '').toLowerCase().includes(studentSearch.toLowerCase()) ||
       (s.department || '').toLowerCase().includes(studentSearch.toLowerCase()) ||
-      (s.degree || '').toLowerCase().includes(studentSearch.toLowerCase())
+      (s.degree || '').toLowerCase().includes(studentSearch.toLowerCase()) ||
+      String(s.class_of || '')
+        .toLowerCase()
+        .includes(studentSearch.toLowerCase())
   )
 
   const YEAR_OPTIONS = ['Foundation', 'Year 1', 'Year 2', 'Placement Year', 'Year 4']
@@ -1719,6 +1742,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
                     <th css={deptTableThStyles(darkMode)}>Department</th>
                     <th css={deptTableThStyles(darkMode)}>Degree</th>
                     <th css={deptTableThStyles(darkMode)}>Year</th>
+                    <th css={deptTableThStyles(darkMode)}>Class of</th>
                     <th css={deptTableThStyles(darkMode)}>GPA</th>
                     <th css={deptTableThStyles(darkMode)}>Points</th>
                     <th css={deptTableThStyles(darkMode)}>Attendance</th>
@@ -1728,13 +1752,13 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
                 <tbody>
                   {studentLoading ? (
                     <tr>
-                      <td css={deptTableTdStyles(darkMode)} colSpan={10}>
+                      <td css={deptTableTdStyles(darkMode)} colSpan={11}>
                         Loading...
                       </td>
                     </tr>
                   ) : filteredStudents.length === 0 ? (
                     <tr>
-                      <td css={deptTableTdStyles(darkMode)} colSpan={10}>
+                      <td css={deptTableTdStyles(darkMode)} colSpan={11}>
                         No students found.
                       </td>
                     </tr>
@@ -1747,6 +1771,7 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
                         <td css={deptTableTdStyles(darkMode)}>{s.department || '—'}</td>
                         <td css={deptTableTdStyles(darkMode)}>{(degrees.find((d) => d.code === s.degree)?.name) || s.degree || '—'}</td>
                         <td css={deptTableTdStyles(darkMode)}>{s.year || '—'}</td>
+                        <td css={deptTableTdStyles(darkMode)}>{s.class_of ? String(s.class_of) : '—'}</td>
                         <td css={deptTableTdStyles(darkMode)}>{Number(s.gpa) || 0}</td>
                         <td css={deptTableTdStyles(darkMode)}>
                           <span css={pointsCellStyles}>
@@ -2301,6 +2326,24 @@ function AdminDashboard({ darkMode, onToggleDarkMode }) {
                     </option>
                   ))}
                 </select>
+              </div>
+              <div css={modalFieldStyles}>
+                <label css={modalLabelStyles(darkMode)}>Class of</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  css={modalInputStyles(darkMode)}
+                  placeholder="e.g. 2027"
+                  maxLength={10}
+                  value={studentForm.class_of}
+                  onChange={(e) =>
+                    setStudentForm((f) => ({
+                      ...f,
+                      class_of: e.target.value.replace(/[^\d]/g, '').slice(0, 4),
+                    }))
+                  }
+                />
+                <p css={modalHintStyles(darkMode)}>Graduation year (optional).</p>
               </div>
             </div>
             <div css={modalFooterStyles(darkMode)}>

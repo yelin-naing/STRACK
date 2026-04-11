@@ -54,6 +54,8 @@ import {
   profileError,
 } from '../styles/profilePageStyles'
 import ProfilePasswordChange from './ProfilePasswordChange'
+import LecturerCalendar from './LecturerCalendar'
+import LecturerCourses from './LecturerCourses'
 import {
   HiOutlineSquares2X2,
   HiOutlineUserGroup,
@@ -262,8 +264,8 @@ const logoutStyles = css`
   }
 `
 
-const contentStyles = (darkMode, profileTab) => css`
-  max-width: ${profileTab ? 'min(100%, 920px)' : '800px'};
+const contentStyles = (darkMode, profileTab, wideTab) => css`
+  max-width: ${wideTab ? 'min(100%, 1280px)' : profileTab ? 'min(100%, 920px)' : '800px'};
   margin: 0 auto;
   width: 100%;
 `
@@ -549,7 +551,13 @@ function LecturerDashboard({ darkMode, onToggleDarkMode }) {
           </button>
         </header>
         <main css={appMainStyles(darkMode)}>
-        <div css={contentStyles(darkMode, activeNav === 'profile')}>
+        <div
+          css={contentStyles(
+            darkMode,
+            activeNav === 'profile',
+            activeNav === 'calendar' || activeNav === 'courses'
+          )}
+        >
           {activeNav === 'dashboard' && (
             <>
               <h1 css={titleStyles}>Dashboard</h1>
@@ -582,21 +590,9 @@ function LecturerDashboard({ darkMode, onToggleDarkMode }) {
               </p>
             </>
           )}
-          {activeNav === 'courses' && (
-            <>
-              <h1 css={titleStyles}>Courses</h1>
-              <p css={textStyles}>
-                This is the courses page. Manage your courses, materials, and class lists here.
-              </p>
-            </>
-          )}
+          {activeNav === 'courses' && <LecturerCourses darkMode={darkMode} userEmail={userEmail} />}
           {activeNav === 'calendar' && (
-            <>
-              <h1 css={titleStyles}>Calendar</h1>
-              <p css={textStyles}>
-                This is the calendar page. View your teaching schedule, deadlines, and important dates here.
-              </p>
-            </>
+            <LecturerCalendar darkMode={darkMode} userEmail={userEmail} />
           )}
           {activeNav === 'profile' && (
             <div css={profilePageWrap(darkMode)}>
