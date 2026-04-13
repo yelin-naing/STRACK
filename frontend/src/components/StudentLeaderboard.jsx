@@ -6,11 +6,6 @@ import { HiOutlineTrophy, HiOutlineStar } from 'react-icons/hi2'
 const apiBase = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
 const ACCENT = '#6366f1'
 
-function levelFromPoints(points) {
-  const p = Number(points) || 0
-  return Math.max(1, 1 + Math.floor(p / 100))
-}
-
 function fmtAttendance(n) {
   const v = Number(n)
   if (!Number.isFinite(v)) return '0'
@@ -317,7 +312,6 @@ function StudentLeaderboard({ darkMode, userEmail }) {
         ) : (
           <div css={listStyles}>
             {entries.map((e, idx) => {
-              const lvl = levelFromPoints(e.points)
               const att = fmtAttendance(e.attendance)
               const isMe = Boolean(e.is_me)
               const label = e.label || `Student #${e.rank}`
@@ -328,7 +322,7 @@ function StudentLeaderboard({ darkMode, userEmail }) {
                   <div css={nameBlockStyles}>
                     <p css={nameStyles}>{label}</p>
                     <p css={metaLineStyles(darkMode)}>
-                      Level {lvl} • {att}% attendance
+                      {att}% attendance
                     </p>
                   </div>
                   <div css={rowRightStyles}>

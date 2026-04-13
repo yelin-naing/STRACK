@@ -56,6 +56,8 @@ import {
 import ProfilePasswordChange from './ProfilePasswordChange'
 import LecturerCalendar from './LecturerCalendar'
 import LecturerCourses from './LecturerCourses'
+import LecturerAttendance from './LecturerAttendance'
+import NotificationBell from './NotificationBell'
 import {
   HiOutlineSquares2X2,
   HiOutlineUserGroup,
@@ -294,7 +296,6 @@ const textStyles = css`
 
 const LECTURER_NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: HiOutlineSquares2X2 },
-  { id: 'students', label: 'Students', icon: HiOutlineUserGroup },
   { id: 'attendance', label: 'Attendance', icon: HiOutlineClipboardDocumentCheck },
   { id: 'performance', label: 'Performance', icon: HiOutlineChartBar },
   { id: 'courses', label: 'Courses', icon: HiOutlineBookOpen },
@@ -482,6 +483,7 @@ function LecturerDashboard({ darkMode, onToggleDarkMode }) {
             <span css={logoTextStyles(darkMode)}>Strack</span>
           </div>
           <div css={css`display: flex; align-items: center; gap: 0.15rem; flex-shrink: 0;`}>
+            <NotificationBell darkMode={darkMode} userEmail={userEmail} placement="sidebar" />
             <button
               type="button"
               css={themeToggleStyles(darkMode)}
@@ -541,21 +543,24 @@ function LecturerDashboard({ darkMode, onToggleDarkMode }) {
             <HiOutlineBars3 />
           </button>
           <span css={appMobileTopBarTitle(darkMode)}>Strack</span>
-          <button
-            type="button"
-            css={themeToggleStyles(darkMode)}
-            onClick={onToggleDarkMode}
-            aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {darkMode ? <HiOutlineSun /> : <HiOutlineMoon />}
-          </button>
+          <div css={css`display: inline-flex; align-items: center; gap: 0.3rem;`}>
+            <NotificationBell darkMode={darkMode} userEmail={userEmail} />
+            <button
+              type="button"
+              css={themeToggleStyles(darkMode)}
+              onClick={onToggleDarkMode}
+              aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {darkMode ? <HiOutlineSun /> : <HiOutlineMoon />}
+            </button>
+          </div>
         </header>
         <main css={appMainStyles(darkMode)}>
         <div
           css={contentStyles(
             darkMode,
             activeNav === 'profile',
-            activeNav === 'calendar' || activeNav === 'courses'
+            activeNav === 'calendar' || activeNav === 'courses' || activeNav === 'attendance'
           )}
         >
           {activeNav === 'dashboard' && (
@@ -566,22 +571,7 @@ function LecturerDashboard({ darkMode, onToggleDarkMode }) {
               </p>
             </>
           )}
-          {activeNav === 'students' && (
-            <>
-              <h1 css={titleStyles}>Students</h1>
-              <p css={textStyles}>
-                This is the students page. View your class lists and student details here.
-              </p>
-            </>
-          )}
-          {activeNav === 'attendance' && (
-            <>
-              <h1 css={titleStyles}>Attendance</h1>
-              <p css={textStyles}>
-                This is the attendance page. Mark and view student attendance for your classes here.
-              </p>
-            </>
-          )}
+          {activeNav === 'attendance' && <LecturerAttendance darkMode={darkMode} userEmail={userEmail} />}
           {activeNav === 'performance' && (
             <>
               <h1 css={titleStyles}>Performance</h1>

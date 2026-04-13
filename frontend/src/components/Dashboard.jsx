@@ -8,6 +8,7 @@ import StudentCalendar from './StudentCalendar'
 import StudentBadges from './StudentBadges'
 import StudentCourses from './StudentCourses'
 import StudentLeaderboard from './StudentLeaderboard'
+import NotificationBell from './NotificationBell'
 import { useMobileDrawer } from '../hooks/useMobileDrawer'
 import {
   appLayoutStyles,
@@ -496,6 +497,7 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
             <span css={logoTextStyles(darkMode)}>Strack</span>
           </div>
           <div css={css`display: flex; align-items: center; gap: 0.15rem; flex-shrink: 0;`}>
+            <NotificationBell darkMode={darkMode} userEmail={userEmail} placement="sidebar" />
             <button
               type="button"
               css={themeToggleStyles(darkMode)}
@@ -563,14 +565,17 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
             <HiOutlineBars3 />
           </button>
           <span css={appMobileTopBarTitle(darkMode)}>Strack</span>
-          <button
-            type="button"
-            css={themeToggleStyles(darkMode)}
-            onClick={onToggleDarkMode}
-            aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {darkMode ? <HiOutlineSun /> : <HiOutlineMoon />}
-          </button>
+          <div css={css`display: inline-flex; align-items: center; gap: 0.3rem;`}>
+            <NotificationBell darkMode={darkMode} userEmail={userEmail} />
+            <button
+              type="button"
+              css={themeToggleStyles(darkMode)}
+              onClick={onToggleDarkMode}
+              aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {darkMode ? <HiOutlineSun /> : <HiOutlineMoon />}
+            </button>
+          </div>
         </header>
         <main css={appMainStyles(darkMode)}>
         {activeNav === 'rewards' ? (
@@ -585,7 +590,7 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
           css={contentStyles(
             darkMode,
             activeNav === 'profile',
-            activeNav === 'calendar' || activeNav === 'courses' || activeNav === 'leaderboard'
+            activeNav === 'calendar' || activeNav === 'courses' || activeNav === 'leaderboard' || activeNav === 'badges'
           )}
         >
           {activeNav === 'dashboard' && (

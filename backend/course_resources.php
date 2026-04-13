@@ -115,6 +115,24 @@ function ensureCourseResourcesTable(PDO $connection): void
     ensureUploadDir();
 }
 
+function ensureNotificationsTable(PDO $connection): void
+{
+    $connection->exec("
+        CREATE TABLE IF NOT EXISTS strack_notifications (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            recipient_email VARCHAR(255) NOT NULL,
+            title VARCHAR(255) NOT NULL,
+            message TEXT NOT NULL,
+            type VARCHAR(64) NOT NULL DEFAULT 'general',
+            is_read TINYINT(1) NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_notifications_email (recipient_email),
+            INDEX idx_notifications_email_read (recipient_email, is_read),
+            INDEX idx_notifications_created (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
+}
+
 function lecturerOwnsCourse(PDO $c, string $emailLower, int $courseId): bool
 {
     $q = $c->prepare('
@@ -168,6 +186,93 @@ function safeExtension(string $name): ?string
         return null;
     }
     return isset(ALLOWED_EXT[$ext]) ? $ext : null;
+}
+
+
+function lookupCourseSummary(PDO $c, int $courseId): array
+{
+    $stmt = $c->prepare('
+        SELECT co.course_code, co.course_name, a.full_name AS lecturer_name
+        FROM strack_courses co
+        LEFT JOIN strack_lecturers l ON l.lecturer_id = co.lecturer_id
+        LEFT JOIN strack_accounts a ON a.id = l.account_id AND a.role = \'teacher\'
+        WHERE co.id = :cid
+        LIMIT 1
+    ');
+    $stmt->execute(['cid' => $courseId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return [
+            'course_code' => 'Course',
+            'course_name' => 'Module',
+            'lecturer_name' => 'Your lecturer',
+        ];
+    }
+    return [
+        'course_code' => (string) ($row['course_code'] ?? 'Course'),
+        'course_name' => (string) ($row['course_name'] ?? 'Module'),
+        'lecturer_name' => (string) ($row['lecturer_name'] ?? 'Your lecturer'),
+    ];
+}
+
+function enrolledStudentEmails(PDO $c, int $courseId): array
+{
+    $stmt = $c->prepare('
+        SELECT DISTINCT LOWER(TRIM(s.email)) AS email, s.full_name
+        FROM strack_course_students cs
+        INNER JOIN strack_students s ON s.id = cs.student_id
+        WHERE cs.course_id = :cid
+          AND s.email IS NOT NULL
+          AND TRIM(s.email) <> \'\'
+    ');
+    $stmt->execute(['cid' => $courseId]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $out = [];
+    foreach ($rows as $r) {
+        $email = trim((string) ($r['email'] ?? ''));
+        if ($email !== '') {
+            $out[] = [
+                'email' => $email,
+                'full_name' => trim((string) ($r['full_name'] ?? 'Student')),
+            ];
+        }
+    }
+    return $out;
+}
+
+function insertInAppNotificationsForResource(PDO $c, int $courseId, string $filename): int
+{
+    ensureNotificationsTable($c);
+    $course = lookupCourseSummary($c, $courseId);
+    $title = sprintf('New resource in %s', $course['course_code']);
+    $message = sprintf(
+        '%s uploaded "%s" for %s - %s.',
+        $course['lecturer_name'],
+        $filename,
+        $course['course_code'],
+        $course['course_name']
+    );
+
+    $students = enrolledStudentEmails($c, $courseId);
+    if (count($students) === 0) {
+        return 0;
+    }
+
+    $ins = $c->prepare('
+        INSERT INTO strack_notifications (recipient_email, title, message, type, is_read)
+        VALUES (:email, :title, :message, :type, 0)
+    ');
+    $count = 0;
+    foreach ($students as $student) {
+        $ins->execute([
+            'email' => $student['email'],
+            'title' => $title,
+            'message' => $message,
+            'type' => 'resource_upload',
+        ]);
+        $count += 1;
+    }
+    return $count;
 }
 
 try {
@@ -279,6 +384,7 @@ try {
             'aid' => $accountId > 0 ? $accountId : null,
         ]);
         $id = (int) $connection->lastInsertId();
+        $inAppCount = insertInAppNotificationsForResource($connection, $courseId, $displayName);
         echo json_encode([
             'success' => true,
             'id' => $id,
@@ -289,6 +395,9 @@ try {
                 'mime_type' => $mime,
                 'file_size' => $size,
                 'created_at' => date('Y-m-d H:i:s'),
+            ],
+            'notifications' => [
+                'in_app_created' => $inAppCount,
             ],
         ]);
         exit;

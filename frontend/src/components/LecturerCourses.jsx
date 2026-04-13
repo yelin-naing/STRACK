@@ -125,6 +125,7 @@ function LecturerCourses({ darkMode, userEmail }) {
   const [courseResources, setCourseResources] = useState([])
   const [resourcesLoading, setResourcesLoading] = useState(false)
   const [resourcesError, setResourcesError] = useState('')
+  const [uploadReport, setUploadReport] = useState(null)
   const [uploadBusy, setUploadBusy] = useState(false)
   const fileInputRef = useRef(null)
   const [enrolledModalCourse, setEnrolledModalCourse] = useState(null)
@@ -177,6 +178,7 @@ function LecturerCourses({ darkMode, userEmail }) {
     if (!file || !resourceCourse?.id || !userEmail) return
     setUploadBusy(true)
     setResourcesError('')
+    setUploadReport(null)
     try {
       const fd = new FormData()
       fd.append('file', file)
@@ -188,6 +190,10 @@ function LecturerCourses({ darkMode, userEmail }) {
         setResourcesError(data.error || 'Upload failed')
         return
       }
+      const stats = data.notifications || {}
+      setUploadReport({
+        inApp: Number(stats.in_app_created) || 0,
+      })
       const listRes = await fetch(
         `${apiBase}/backend/course_resources.php?course_id=${resourceCourse.id}&lecturer_email=${encodeURIComponent(userEmail)}`,
         { cache: 'no-store' }
@@ -461,6 +467,21 @@ function LecturerCourses({ darkMode, userEmail }) {
               </div>
               {resourcesError ? (
                 <p style={{ color: '#dc2626', margin: '0 0 .75rem', fontSize: '.9rem' }}>{resourcesError}</p>
+              ) : null}
+              {uploadReport ? (
+                <div
+                  css={css`
+                    border: 1px solid #86efac;
+                    background: #ecfdf5;
+                    color: #065f46;
+                    border-radius: 10px;
+                    padding: 0.6rem 0.7rem;
+                    margin: 0 0 0.75rem;
+                    font-size: 0.9rem;
+                  `}
+                >
+                  Upload complete. In-app notifications created: <strong>{uploadReport.inApp}</strong>.
+                </div>
               ) : null}
               {resourcesLoading ? (
                 <p css={subtitleStyles(darkMode)} style={{ margin: 0 }}>
