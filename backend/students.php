@@ -1,6 +1,7 @@
 <?php
 /**
  * Students API - CRUD for strack_students
+ * Optional cohort: intake_month (Sep|Jan|May), intake_year (2000–2100) — used with course intake for visibility.
  * GET: list all (with optional department filter)
  * POST: create (gpa, points, attendance default to 0)
  * PUT: update
@@ -20,6 +21,36 @@ require_once __DIR__ . '/getConnection.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
+function ensureStudentIntakeColumns(PDO $connection): void
+{
+    try {
+        $connection->exec('ALTER TABLE strack_students ADD COLUMN intake_month VARCHAR(8) DEFAULT NULL');
+    } catch (PDOException $e) {
+        if (stripos($e->getMessage(), 'Duplicate column') === false) {
+            throw $e;
+        }
+    }
+    try {
+        $connection->exec('ALTER TABLE strack_students ADD COLUMN intake_year SMALLINT UNSIGNED DEFAULT NULL');
+    } catch (PDOException $e) {
+        if (stripos($e->getMessage(), 'Duplicate column') === false) {
+            throw $e;
+        }
+    }
+}
+
+/** @return array{0: ?string, 1: ?int} */
+function normalizeStudentIntake(array $input): array
+{
+    $allowedMonths = ['Sep', 'Jan', 'May'];
+    $m = trim((string) ($input['intake_month'] ?? ''));
+    $intakeMonth = in_array($m, $allowedMonths, true) ? $m : null;
+    $y = (int) ($input['intake_year'] ?? 0);
+    $intakeYear = $y >= 2000 && $y <= 2100 ? $y : null;
+
+    return [$intakeMonth, $intakeYear];
+}
+
 try {
     $connection = getConnection();
 
@@ -32,15 +63,47 @@ try {
         }
     }
 
+    ensureStudentIntakeColumns($connection);
+
     switch ($method) {
         case 'GET':
+            try {
+                $connection->exec("
+                    CREATE TABLE IF NOT EXISTS strack_study_sessions (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        student_id INT NOT NULL,
+                        course_id INT NOT NULL,
+                        course_code VARCHAR(64) NOT NULL DEFAULT '',
+                        course_name VARCHAR(255) NOT NULL DEFAULT '',
+                        duration_minutes INT NOT NULL DEFAULT 25,
+                        session_kind VARCHAR(32) NOT NULL DEFAULT 'pomodoro',
+                        completed_at DATETIME NOT NULL,
+                        INDEX idx_study_student_time (student_id, completed_at),
+                        INDEX idx_study_course (course_id),
+                        CONSTRAINT fk_study_student FOREIGN KEY (student_id) REFERENCES strack_students (id) ON DELETE CASCADE,
+                        CONSTRAINT fk_study_course FOREIGN KEY (course_id) REFERENCES strack_courses (id) ON DELETE CASCADE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                ");
+            } catch (PDOException $e) {
+                if (stripos($e->getMessage(), 'already exists') === false && stripos($e->getMessage(), 'Duplicate') === false) {
+                    // allow installs where FK creation fails once
+                }
+            }
             $stmt = $connection->query("
-                SELECT id, student_id, full_name, email, 
-                       COALESCE(`password`, '') as student_pwd,
-                       department, year, degree, class_of,
-                       COALESCE(gpa, 0) as gpa, COALESCE(points, 0) as points, COALESCE(attendance, 0) as attendance
-                FROM strack_students 
-                ORDER BY student_id
+                SELECT s.id, s.student_id, s.full_name, s.email,
+                       COALESCE(s.`password`, '') as student_pwd,
+                       s.department, s.year, s.degree, s.class_of,
+                       s.intake_month, s.intake_year,
+                       COALESCE(s.gpa, 0) as gpa, COALESCE(s.points, 0) as points, COALESCE(s.attendance, 0) as attendance,
+                       COALESCE(pcnt.cnt, 0) AS pomodoro_sessions_count
+                FROM strack_students s
+                LEFT JOIN (
+                    SELECT student_id, COUNT(*) AS cnt
+                    FROM strack_study_sessions
+                    WHERE LOWER(TRIM(COALESCE(session_kind, 'pomodoro'))) = 'pomodoro'
+                    GROUP BY student_id
+                ) pcnt ON pcnt.student_id = s.id
+                ORDER BY s.student_id
             ");
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             // Map student_pwd to password for frontend (avoid MySQL reserved word issues)
@@ -62,6 +125,7 @@ try {
             $year = trim($input['year'] ?? '');
             $degree = trim($input['degree'] ?? '');
             $classOf = trim($input['class_of'] ?? '');
+            [$intakeMonth, $intakeYear] = normalizeStudentIntake($input);
 
             if (!$studentId || !$fullName || !$email || !$password) {
                 http_response_code(400);
@@ -80,8 +144,8 @@ try {
             }
 
             $stmt = $connection->prepare("
-                INSERT INTO strack_students (student_id, full_name, email, password, department, year, degree, class_of, gpa, points, attendance)
-                VALUES (:student_id, :full_name, :email, :password, :department, :year, :degree, :class_of, 0, 0, 0)
+                INSERT INTO strack_students (student_id, full_name, email, password, department, year, degree, class_of, intake_month, intake_year, gpa, points, attendance)
+                VALUES (:student_id, :full_name, :email, :password, :department, :year, :degree, :class_of, :intake_month, :intake_year, 0, 0, 0)
             ");
             $stmt->execute([
                 'student_id' => $studentId,
@@ -92,6 +156,8 @@ try {
                 'year' => $year ?: null,
                 'degree' => $degree ?: null,
                 'class_of' => $classOf !== '' ? $classOf : null,
+                'intake_month' => $intakeMonth,
+                'intake_year' => $intakeYear,
             ]);
             $id = $connection->lastInsertId();
             echo json_encode(['success' => true, 'id' => (int) $id]);
@@ -108,6 +174,7 @@ try {
             $year = trim($input['year'] ?? '');
             $degree = trim($input['degree'] ?? '');
             $classOf = trim($input['class_of'] ?? '');
+            [$intakeMonth, $intakeYear] = normalizeStudentIntake($input);
 
             if (!$id || !$studentId || !$fullName || !$email) {
                 http_response_code(400);
@@ -129,7 +196,8 @@ try {
                 $stmt = $connection->prepare("
                     UPDATE strack_students 
                     SET student_id = :student_id, full_name = :full_name, email = :email, password = :password,
-                        department = :department, year = :year, degree = :degree, class_of = :class_of
+                        department = :department, year = :year, degree = :degree, class_of = :class_of,
+                        intake_month = :intake_month, intake_year = :intake_year
                     WHERE id = :id
                 ");
                 $stmt->execute([
@@ -142,12 +210,15 @@ try {
                     'year' => $year ?: null,
                     'degree' => $degree ?: null,
                     'class_of' => $classOf !== '' ? $classOf : null,
+                    'intake_month' => $intakeMonth,
+                    'intake_year' => $intakeYear,
                 ]);
             } else {
                 $stmt = $connection->prepare("
                     UPDATE strack_students 
                     SET student_id = :student_id, full_name = :full_name, email = :email, 
-                        department = :department, year = :year, degree = :degree, class_of = :class_of
+                        department = :department, year = :year, degree = :degree, class_of = :class_of,
+                        intake_month = :intake_month, intake_year = :intake_year
                     WHERE id = :id
                 ");
                 $stmt->execute([
@@ -159,6 +230,8 @@ try {
                     'year' => $year ?: null,
                     'degree' => $degree ?: null,
                     'class_of' => $classOf !== '' ? $classOf : null,
+                    'intake_month' => $intakeMonth,
+                    'intake_year' => $intakeYear,
                 ]);
             }
             echo json_encode(['success' => true]);

@@ -13,8 +13,19 @@ import {
   HiOutlineEnvelope,
 } from 'react-icons/hi2'
 
+import {
+  INTAKE_MONTH_FORM_OPTIONS,
+  SEMESTER_FORM_OPTIONS,
+  COURSE_STUDY_YEAR_OPTIONS,
+  getIntakeYearSelectRange,
+  formatIntakeDisplay,
+  formatStudyYearDisplay,
+} from '../courseDisplayUtils'
+
 const apiBase = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
 const ACCENT = '#6366f1'
+
+const LECTURER_INTAKE_YEAR_OPTIONS = getIntakeYearSelectRange()
 
 function parseYMD(s) {
   const [y, m, d] = String(s || '').split('-').map(Number)
@@ -114,6 +125,29 @@ const enrolledModalStyles = (darkMode) => css`
   overflow: auto;
 `
 
+const courseFilterBarStyles = (darkMode) => css`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 0.95rem;
+  padding: 0.75rem;
+  border-radius: 12px;
+  border: 1px solid ${darkMode ? '#404040' : '#e5e7eb'};
+  background: ${darkMode ? '#1f1f1f' : '#f9fafb'};
+`
+
+const courseFilterSelectStyles = (darkMode) => css`
+  min-width: 8.5rem;
+  padding: 0.42rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid ${darkMode ? '#525252' : '#d1d5db'};
+  background: ${darkMode ? '#262626' : '#fff'};
+  color: inherit;
+  font: inherit;
+  font-size: 0.92rem;
+`
+
 function LecturerCourses({ darkMode, userEmail }) {
   const [courses, setCourses] = useState([])
   const [lecturer, setLecturer] = useState(null)
@@ -129,6 +163,16 @@ function LecturerCourses({ darkMode, userEmail }) {
   const [uploadBusy, setUploadBusy] = useState(false)
   const fileInputRef = useRef(null)
   const [enrolledModalCourse, setEnrolledModalCourse] = useState(null)
+  const [fltIntakeMonth, setFltIntakeMonth] = useState('')
+  const [fltIntakeYear, setFltIntakeYear] = useState('')
+  const [fltSemester, setFltSemester] = useState('')
+  const [fltCourseStudyYear, setFltCourseStudyYear] = useState('')
+  const [assignmentDemoSubs, setAssignmentDemoSubs] = useState([])
+  const [assignmentDemoLoading, setAssignmentDemoLoading] = useState(false)
+  const [assignmentDemoError, setAssignmentDemoError] = useState('')
+
+  const demoSubmissionDownloadHref = (submissionId) =>
+    `${apiBase}/backend/demo_assignment_submissions.php?download=1&submission_id=${encodeURIComponent(String(submissionId))}&lecturer_email=${encodeURIComponent(userEmail || '')}`
 
   const openEnrolledModal = (course, closeDetail) => {
     if (closeDetail) setDetailCourse(null)
@@ -140,6 +184,37 @@ function LecturerCourses({ darkMode, userEmail }) {
 
   const downloadHref = (resourceId) =>
     `${apiBase}/backend/course_resources.php?download=1&id=${resourceId}&lecturer_email=${encodeURIComponent(userEmail || '')}`
+
+  useEffect(() => {
+    if (!assignmentCourse?.id || !userEmail) {
+      setAssignmentDemoSubs([])
+      setAssignmentDemoError('')
+      return undefined
+    }
+    let cancelled = false
+    async function loadDemoSubs() {
+      setAssignmentDemoLoading(true)
+      setAssignmentDemoError('')
+      try {
+        const res = await fetch(
+          `${apiBase}/backend/demo_assignment_submissions.php?course_id=${encodeURIComponent(String(assignmentCourse.id))}&lecturer_email=${encodeURIComponent(userEmail)}`,
+          { cache: 'no-store' }
+        )
+        const data = await res.json().catch(() => ({}))
+        if (cancelled) return
+        if (data.success) setAssignmentDemoSubs(Array.isArray(data.submissions) ? data.submissions : [])
+        else setAssignmentDemoError(data.error || 'Could not load student uploads')
+      } catch (_) {
+        if (!cancelled) setAssignmentDemoError('Could not load student uploads')
+      } finally {
+        if (!cancelled) setAssignmentDemoLoading(false)
+      }
+    }
+    loadDemoSubs()
+    return () => {
+      cancelled = true
+    }
+  }, [assignmentCourse?.id, userEmail])
 
   useEffect(() => {
     if (!resourceCourse?.id || !userEmail) {
@@ -278,9 +353,19 @@ function LecturerCourses({ darkMode, userEmail }) {
     return courses.filter((c) => String(c.lecturer_id || '').trim() === lid)
   }, [courses, lecturer])
 
+  const filteredMyCourses = useMemo(() => {
+    return myCourses.filter((c) => {
+      if (fltIntakeMonth && String(c.intake_month || '') !== fltIntakeMonth) return false
+      if (fltIntakeYear && String(c.intake_year ?? '') !== fltIntakeYear) return false
+      if (fltSemester && String(c.semester || '') !== fltSemester) return false
+      if (fltCourseStudyYear && String(c.course_study_year || '') !== fltCourseStudyYear) return false
+      return true
+    })
+  }, [myCourses, fltIntakeMonth, fltIntakeYear, fltSemester, fltCourseStudyYear])
+
   const enriched = useMemo(() => {
     const todayYmd = toYMD(new Date())
-    return myCourses.map((c) => {
+    return filteredMyCourses.map((c) => {
       const cid = Number(c.id)
       const classes = entries
         .filter((e) => e.entry_type === 'class' && Number(e.course_id) === cid)
@@ -321,7 +406,7 @@ function LecturerCourses({ darkMode, userEmail }) {
         },
       }
     })
-  }, [myCourses, entries])
+  }, [filteredMyCourses, entries])
 
   const totals = useMemo(() => {
     const totalCourses = enriched.length
@@ -334,12 +419,77 @@ function LecturerCourses({ darkMode, userEmail }) {
 
   const emptyMessage = !lecturer
     ? 'We could not match your account to a lecturer profile. Check that your email matches the staff record.'
-    : 'No courses are assigned to you yet.'
+    : myCourses.length === 0
+      ? 'No courses are assigned to you yet.'
+      : filteredMyCourses.length === 0
+        ? 'No courses match the selected filters.'
+        : 'No courses are assigned to you yet.'
 
   return (
     <div css={wrapStyles}>
       <h1 css={titleStyles}>My Courses</h1>
-      <p css={subtitleStyles(darkMode)}>Modules you teach, timetable sessions, and assignment due dates</p>
+      <p css={subtitleStyles(darkMode)}>
+        Modules you teach, timetable sessions, and assignment due dates. Open <strong>Assignments</strong> on a module to
+        view due dates and to <strong>see and download</strong> files students upload from their Courses page (demo
+        assignment submissions).
+      </p>
+
+      {lecturer ? (
+        <div css={courseFilterBarStyles(darkMode)} role="search" aria-label="Filter courses">
+          <span css={subtitleStyles(darkMode)} style={{ margin: 0, fontWeight: 700 }}>
+            Filters
+          </span>
+          <select
+            css={courseFilterSelectStyles(darkMode)}
+            value={fltIntakeMonth}
+            onChange={(e) => setFltIntakeMonth(e.target.value)}
+            aria-label="Intake month"
+          >
+            {INTAKE_MONTH_FORM_OPTIONS.map((o) => (
+              <option key={o.value || 'all-m'} value={o.value}>
+                {o.value ? o.label : 'Any month'}
+              </option>
+            ))}
+          </select>
+          <select
+            css={courseFilterSelectStyles(darkMode)}
+            value={fltIntakeYear}
+            onChange={(e) => setFltIntakeYear(e.target.value)}
+            aria-label="Intake year"
+          >
+            <option value="">Any intake year</option>
+            {LECTURER_INTAKE_YEAR_OPTIONS.map((y) => (
+              <option key={y} value={String(y)}>
+                {y}
+              </option>
+            ))}
+          </select>
+          <select
+            css={courseFilterSelectStyles(darkMode)}
+            value={fltSemester}
+            onChange={(e) => setFltSemester(e.target.value)}
+            aria-label="Semester"
+          >
+            {SEMESTER_FORM_OPTIONS.map((o) => (
+              <option key={o.value || 'all-s'} value={o.value}>
+                {o.value ? o.label : 'Any semester'}
+              </option>
+            ))}
+          </select>
+          <select
+            css={courseFilterSelectStyles(darkMode)}
+            value={fltCourseStudyYear}
+            onChange={(e) => setFltCourseStudyYear(e.target.value)}
+            aria-label="Course study year"
+          >
+            {COURSE_STUDY_YEAR_OPTIONS.map((o) => (
+              <option key={o.value || 'all-y'} value={o.value}>
+                {o.value ? o.label : 'Any study year'}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
 
       <div css={kpiGridStyles}>
         <div css={kpiCardStyles(darkMode)}>
@@ -381,6 +531,13 @@ function LecturerCourses({ darkMode, userEmail }) {
               <div css={chipsRowStyles}>
                 <span css={chipStyles(darkMode)}>{c.course_code}</span>
                 <span css={chipStyles(darkMode)}>{Number(c.credits) || 0} Credits</span>
+                <span css={chipStyles(darkMode)} title="Cohort intake">
+                  {formatIntakeDisplay(c)}
+                </span>
+                {c.semester ? <span css={chipStyles(darkMode)}>{c.semester}</span> : null}
+                {c.course_study_year ? (
+                  <span css={chipStyles(darkMode)}>{formatStudyYearDisplay(c.course_study_year)}</span>
+                ) : null}
                 <span css={activeChipStyles}>Active</span>
               </div>
               <h3 css={courseNameStyles}>{c.course_name}</h3>
@@ -552,6 +709,13 @@ function LecturerCourses({ darkMode, userEmail }) {
               </button>
             </div>
             <div css={modalBodyStyles}>
+              <div css={uploadToolbarStyles(darkMode)} style={{ marginBottom: '1rem' }}>
+                <HiOutlineArrowUpTray style={{ width: 22, height: 22, flexShrink: 0, color: ACCENT }} aria-hidden />
+                <p css={subtitleStyles(darkMode)} style={{ margin: 0, flex: '1 1 12rem', lineHeight: 1.45 }}>
+                  <strong>Student uploads:</strong> When students use <strong>Courses → Assignments → Upload a demo file</strong>,
+                  their files appear below. You can open or download each file here.
+                </p>
+              </div>
               {assignmentCourse.meta.assignments.length === 0 ? (
                 <p css={subtitleStyles(darkMode)} style={{ margin: 0 }}>
                   No assignment due dates found for this course yet. Add them from the Calendar tab.
@@ -582,6 +746,46 @@ function LecturerCourses({ darkMode, userEmail }) {
                       Due: {parseYMD(a.due).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                       {a.dueTime ? ` · Time: ${fmtTime(a.dueTime)}` : ''}
                     </p>
+                  </div>
+                ))
+              )}
+              <h4 style={{ margin: '1.25rem 0 0.5rem', fontSize: '1.05rem', fontWeight: 800 }}>Uploaded assignment files</h4>
+              {assignmentDemoLoading ? (
+                <p css={subtitleStyles(darkMode)} style={{ margin: 0 }}>
+                  Loading student uploads…
+                </p>
+              ) : assignmentDemoError ? (
+                <p css={subtitleStyles(darkMode)} style={{ margin: 0, color: '#dc2626' }}>
+                  {assignmentDemoError}
+                </p>
+              ) : assignmentDemoSubs.length === 0 ? (
+                <p css={subtitleStyles(darkMode)} style={{ margin: 0 }}>
+                  No demo files uploaded for this module yet. Students submit from their <strong>Courses</strong> page.
+                </p>
+              ) : (
+                assignmentDemoSubs.map((row) => (
+                  <div key={row.id} css={resourceRowStyles(darkMode)}>
+                    <div style={{ minWidth: 0 }}>
+                      <strong style={{ wordBreak: 'break-word' }}>{row.original_filename || 'File'}</strong>
+                      <p css={subtitleStyles(darkMode)} style={{ margin: '.15rem 0 0' }}>
+                        {row.student_name || 'Student'}
+                        {row.student_email ? ` · ${row.student_email}` : ''}
+                        {row.file_size != null ? ` · ${formatBytes(row.file_size)}` : ''}
+                        {row.uploaded_at
+                          ? ` · ${new Date(String(row.uploaded_at).replace(' ', 'T')).toLocaleString(undefined, {
+                              dateStyle: 'medium',
+                              timeStyle: 'short',
+                            })}`
+                          : ''}
+                      </p>
+                    </div>
+                    <a
+                      href={demoSubmissionDownloadHref(row.id)}
+                      css={ghostBtnStyles(darkMode)}
+                      style={{ textDecoration: 'none', flexShrink: 0 }}
+                    >
+                      <HiOutlineArrowDownTray aria-hidden /> Download
+                    </a>
                   </div>
                 ))
               )}
@@ -656,6 +860,14 @@ function LecturerCourses({ darkMode, userEmail }) {
                 <h3 css={modalTitleStyles}>{detailCourse.course_name}</h3>
                 <p css={modalSubStyles(darkMode)}>
                   {detailCourse.course_code} · {Number(detailCourse.credits) || 0} Credits · {detailCourse.department || 'General'}
+                  <br />
+                  <span style={{ fontSize: '0.92rem' }}>
+                    Intake {formatIntakeDisplay(detailCourse)}
+                    {detailCourse.semester ? ` · ${detailCourse.semester}` : ''}
+                    {detailCourse.course_study_year
+                      ? ` · ${formatStudyYearDisplay(detailCourse.course_study_year)}`
+                      : ''}
+                  </span>
                 </p>
               </div>
               <button type="button" css={closeBtnStyles(darkMode)} onClick={() => setDetailCourse(null)}>

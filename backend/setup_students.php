@@ -54,6 +54,21 @@ try {
         }
     }
 
+    try {
+        $connection->exec('ALTER TABLE strack_students ADD COLUMN intake_month VARCHAR(8) DEFAULT NULL');
+    } catch (PDOException $e) {
+        if (strpos($e->getMessage(), 'Duplicate column') === false) {
+            throw $e;
+        }
+    }
+    try {
+        $connection->exec('ALTER TABLE strack_students ADD COLUMN intake_year SMALLINT UNSIGNED DEFAULT NULL');
+    } catch (PDOException $e) {
+        if (strpos($e->getMessage(), 'Duplicate column') === false) {
+            throw $e;
+        }
+    }
+
     $connection->exec("
         DELETE s1 FROM strack_students s1
         INNER JOIN strack_students s2

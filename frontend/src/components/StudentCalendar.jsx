@@ -10,6 +10,8 @@ import {
   HiOutlineXMark,
   HiOutlineUser,
 } from 'react-icons/hi2'
+import { getCoursesVisibleToStudent } from '../getCoursesVisibleToStudent'
+import { findStudentMe } from '../findStudentMe'
 
 const BASE = '/strack'
 const ACCENT = '#6366f1'
@@ -32,6 +34,22 @@ function fmtTime(t) {
   const h12 = ((hh + 11) % 12) + 1
   const ampm = hh >= 12 ? 'PM' : 'AM'
   return `${h12}:${String(mm).padStart(2, '0')} ${ampm}`
+}
+
+function entryVisibleToStudent(e, allowedCourseIdsSet) {
+  const rawCid = e.course_id
+  const cid = rawCid != null && rawCid !== '' ? Number(rawCid) : NaN
+  const hasModule = Number.isFinite(cid) && cid > 0
+
+  if (e.entry_type === 'event') {
+    if (!hasModule) return true
+    return allowedCourseIdsSet.has(cid)
+  }
+  if (e.entry_type === 'class') {
+    if (!hasModule) return false
+    return allowedCourseIdsSet.has(cid)
+  }
+  return false
 }
 
 function buildCells(monthCursor) {
@@ -325,9 +343,12 @@ const detailRowStyles = (darkMode) => css`
   }
 `
 
-function StudentCalendar({ darkMode, userEmail, studentId }) {
+const UPCOMING_HORIZON_DAYS = 200
+
+function StudentCalendar({ darkMode, userEmail, studentId, studentDatabaseId }) {
   const [monthCursor, setMonthCursor] = useState(new Date())
   const [entries, setEntries] = useState([])
+  const [horizonEntries, setHorizonEntries] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState(toYMD(new Date()))
   const [allowedCourseIds, setAllowedCourseIds] = useState([])
@@ -376,6 +397,33 @@ function StudentCalendar({ darkMode, userEmail, studentId }) {
 
   useEffect(() => {
     let active = true
+    async function loadHorizon() {
+      try {
+        const start = new Date()
+        start.setHours(0, 0, 0, 0)
+        const end = new Date(start)
+        end.setDate(end.getDate() + UPCOMING_HORIZON_DAYS)
+        const from = toYMD(start)
+        const to = toYMD(end)
+        const res = await fetch(
+          `${BASE}/backend/timetable.php?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+        )
+        const data = await res.json()
+        if (!active) return
+        setHorizonEntries(data.success ? data.entries || [] : [])
+      } catch (_) {
+        if (!active) return
+        setHorizonEntries([])
+      }
+    }
+    loadHorizon()
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let active = true
     async function loadStudentCourseScope() {
       setCourseFilterReady(false)
       try {
@@ -389,12 +437,7 @@ function StudentCalendar({ darkMode, userEmail, studentId }) {
 
         const students = studentsJson.success ? studentsJson.students || [] : []
         const courses = coursesJson.success ? coursesJson.courses || [] : []
-        const targetEmail = String(userEmail || '').trim().toLowerCase()
-        const targetStudentId = String(studentId || '').trim().toUpperCase()
-        const me =
-          students.find((s) => String(s.email || '').trim().toLowerCase() === targetEmail) ||
-          students.find((s) => String(s.student_id || '').trim().toUpperCase() === targetStudentId) ||
-          null
+        const me = findStudentMe(students, { userEmail, studentId, studentDatabaseId })
 
         if (!me) {
           setAllowedCourseIds([])
@@ -405,21 +448,9 @@ function StudentCalendar({ darkMode, userEmail, studentId }) {
 
         setDegreeName(String(me.degree || '').trim())
 
-        const enrolledIds = courses
-          .filter((c) => Array.isArray(c.student_ids) && c.student_ids.map((v) => Number(v)).includes(Number(me.id)))
-          .map((c) => Number(c.id))
-          .filter((id) => Number.isFinite(id) && id > 0)
-
-        // Fallback: if no explicit enrollments yet, show courses from student's department.
-        const fallbackIds =
-          enrolledIds.length === 0
-            ? courses
-                .filter((c) => String(c.department || '').trim() !== '' && String(c.department || '').trim() === String(me.department || '').trim())
-                .map((c) => Number(c.id))
-                .filter((id) => Number.isFinite(id) && id > 0)
-            : []
-
-        setAllowedCourseIds(Array.from(new Set(enrolledIds.length > 0 ? enrolledIds : fallbackIds)))
+        const visible = getCoursesVisibleToStudent(courses, me)
+        const ids = visible.map((c) => Number(c.id)).filter((id) => Number.isFinite(id) && id > 0)
+        setAllowedCourseIds(Array.from(new Set(ids)))
       } catch (_) {
         if (!active) return
         setAllowedCourseIds([])
@@ -432,18 +463,19 @@ function StudentCalendar({ darkMode, userEmail, studentId }) {
     return () => {
       active = false
     }
-  }, [userEmail, studentId])
+  }, [userEmail, studentId, studentDatabaseId])
 
   const scopedEntries = useMemo(() => {
     if (!courseFilterReady) return []
     const allowed = new Set((allowedCourseIds || []).map((id) => Number(id)))
-    return entries.filter((e) => {
-      if (e.entry_type !== 'class') return true
-      const cid = Number(e.course_id)
-      if (!Number.isFinite(cid) || cid <= 0) return false
-      return allowed.has(cid)
-    })
+    return entries.filter((e) => entryVisibleToStudent(e, allowed))
   }, [entries, allowedCourseIds, courseFilterReady])
+
+  const scopedHorizonEntries = useMemo(() => {
+    if (!courseFilterReady) return []
+    const allowed = new Set((allowedCourseIds || []).map((id) => Number(id)))
+    return horizonEntries.filter((e) => entryVisibleToStudent(e, allowed))
+  }, [horizonEntries, allowedCourseIds, courseFilterReady])
 
   const entriesByDate = useMemo(() => {
     const map = {}
@@ -460,11 +492,14 @@ function StudentCalendar({ darkMode, userEmail, studentId }) {
   const todaysEvents = entriesByDate[toYMD(today)] || []
 
   const upcoming = useMemo(() => {
-    const list = scopedEntries
-      .filter((e) => e.entry_date > toYMD(today) || (e.entry_date === toYMD(today) && e.start_time >= '00:00:00'))
+    const todayYmd = toYMD(today)
+    const list = scopedHorizonEntries
+      .filter(
+        (e) => e.entry_date > todayYmd || (e.entry_date === todayYmd && String(e.start_time || '') >= '00:00:00')
+      )
       .sort((a, b) => `${a.entry_date} ${a.start_time}`.localeCompare(`${b.entry_date} ${b.start_time}`))
     return list.slice(0, 5)
-  }, [scopedEntries, today])
+  }, [scopedHorizonEntries, today])
 
   const monthLabel = monthCursor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
   const selectedLabel = parseYMD(selectedDate).toLocaleDateString(undefined, {
@@ -627,10 +662,24 @@ function StudentCalendar({ darkMode, userEmail, studentId }) {
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <strong style={{ fontSize: '0.92rem' }}>
-                      {ev.entry_type === 'class' ? ev.course_name || ev.course_code : ev.event_title}
+                      {ev.entry_type === 'class' ? ev.course_name || ev.course_code : ev.event_title || 'Assignment'}
                     </strong>
-                    <span css={upcomingTypeStyles(darkMode)}>{ev.entry_type === 'class' ? 'Lecture' : 'Event'}</span>
+                    <span css={upcomingTypeStyles(darkMode)}>
+                      {ev.entry_type === 'class' ? 'Lecture' : 'Assignment'}
+                    </span>
                   </div>
+                  {ev.entry_type === 'event' && (ev.course_code || ev.course_name) ? (
+                    <div
+                      style={{
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        color: darkMode ? '#9ca3af' : '#6b7280',
+                        marginTop: '0.2rem',
+                      }}
+                    >
+                      {[ev.course_code, ev.course_name].filter(Boolean).join(' — ')}
+                    </div>
+                  ) : null}
                   <div css={eventMetaStyles(darkMode)} style={{ marginTop: '0.25rem' }}>
                     <span>
                       <HiOutlineCalendar />

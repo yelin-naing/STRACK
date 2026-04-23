@@ -99,6 +99,7 @@ try {
                 'email' => $student['email'],
                 'full_name' => $student['full_name'],
                 'role' => 'student',
+                'student_db_id' => (int) $student['id'],
             ];
         }
     }
@@ -157,6 +158,9 @@ try {
         'department' => $departmentName,
         'department_code' => $departmentCode,
     ];
+    if (isset($user['student_db_id'])) {
+        $payloadUser['student_db_id'] = (int) $user['student_db_id'];
+    }
 
     echo json_encode([
         'success' => true,

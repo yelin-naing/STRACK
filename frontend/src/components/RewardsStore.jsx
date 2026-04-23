@@ -12,7 +12,7 @@ const REWARDS = [
     id: 'food_drink',
     title: 'Food & drink vouchers',
     description: '£15 credit for campus cafés and selected partner outlets.',
-    cost: 300,
+    cost: 500,
     category: 'vouchers',
     image:
       'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=640&q=80&auto=format&fit=crop',
@@ -21,7 +21,7 @@ const REWARDS = [
     id: 'discount_local',
     title: 'Local business discount codes',
     description: 'Exclusive codes for shops and services near campus.',
-    cost: 400,
+    cost: 600,
     category: 'vouchers',
     image:
       'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=640&q=80&auto=format&fit=crop',
@@ -29,8 +29,8 @@ const REWARDS = [
   {
     id: 'digital_custom',
     title: 'Digital customisation items',
-    description: 'Wallpapers, icons, and profile themes for your Strack account.',
-    cost: 250,
+    description: 'Wallpapers, icons, and profile themes for your STRACK account.',
+    cost: 350,
     category: 'merchandise',
     image:
       'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=640&q=80&auto=format&fit=crop',
@@ -39,7 +39,7 @@ const REWARDS = [
     id: 'uni_merch',
     title: 'University merchandise',
     description: 'Hoodie, bottle, or cap from the official union store.',
-    cost: 550,
+    cost: 800,
     category: 'merchandise',
     image:
       'https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=640&q=80&auto=format&fit=crop',
@@ -48,7 +48,7 @@ const REWARDS = [
     id: 'recognition',
     title: 'Recognition',
     description: 'Certificate of achievement and spotlight on the leaderboard.',
-    cost: 200,
+    cost: 300,
     category: 'recognition',
     image:
       'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=640&q=80&auto=format&fit=crop',
@@ -57,7 +57,7 @@ const REWARDS = [
     id: 'print_credits',
     title: 'Print credits',
     description: '500 mono pages or equivalent colour printing.',
-    cost: 150,
+    cost: 250,
     category: 'credits',
     image:
     'https://images.unsplash.com/photo-1612815154858-60aa4c59eaa6?q=80&w=2070&auto=format&fit=crop',
@@ -66,7 +66,7 @@ const REWARDS = [
     id: 'charity',
     title: 'Charity donations',
     description: 'We donate £5 to your chosen university charity partner.',
-    cost: 350,
+    cost: 550,
     category: 'charity',
     image:
       'https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?q=80&w=2070&auto=format&fit=crop',
@@ -75,7 +75,7 @@ const REWARDS = [
     id: 'priority_booking',
     title: 'Priority booking',
     description: 'Register for modules and events one day before general release.',
-    cost: 800,
+    cost: 1000,
     category: 'privileges',
     image:
       'https://images.unsplash.com/photo-1501139083538-0139583c060f?w=640&q=80&auto=format&fit=crop',

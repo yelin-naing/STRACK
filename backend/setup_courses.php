@@ -48,6 +48,26 @@ try {
     } catch (PDOException $e) {
         if (strpos($e->getMessage(), 'Duplicate column') === false) throw $e;
     }
+    try {
+        $connection->exec('ALTER TABLE strack_courses ADD COLUMN intake_month VARCHAR(8) DEFAULT NULL');
+    } catch (PDOException $e) {
+        if (strpos($e->getMessage(), 'Duplicate column') === false) throw $e;
+    }
+    try {
+        $connection->exec('ALTER TABLE strack_courses ADD COLUMN intake_year SMALLINT UNSIGNED DEFAULT NULL');
+    } catch (PDOException $e) {
+        if (strpos($e->getMessage(), 'Duplicate column') === false) throw $e;
+    }
+    try {
+        $connection->exec('ALTER TABLE strack_courses ADD COLUMN semester VARCHAR(32) DEFAULT NULL');
+    } catch (PDOException $e) {
+        if (strpos($e->getMessage(), 'Duplicate column') === false) throw $e;
+    }
+    try {
+        $connection->exec('ALTER TABLE strack_courses ADD COLUMN course_study_year VARCHAR(20) DEFAULT NULL');
+    } catch (PDOException $e) {
+        if (strpos($e->getMessage(), 'Duplicate column') === false) throw $e;
+    }
 
     echo "<h2>Courses setup complete</h2>";
     echo "<p>The <strong>strack_courses</strong> and <strong>strack_course_students</strong> tables are ready.</p>";

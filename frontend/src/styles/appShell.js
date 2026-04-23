@@ -159,9 +159,30 @@ export const appMainStyles = (darkMode) => css`
   color: ${darkMode ? '#f3f4f6' : '#1a1a1a'};
   overflow-y: auto;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
   transition: color ${themeTransition};
 
   @media (min-width: 768px) {
     padding: max(1rem, env(safe-area-inset-top)) 2rem 2rem 2rem;
+  }
+`
+
+export const portalTableScrollWrapStyles = (darkMode) => css`
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  max-height: min(72vh, 72dvh, 800px);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  border-radius: 12px;
+  border: 1px solid ${darkMode ? '#404040' : '#e5e7eb'};
+  box-shadow: ${darkMode ? 'none' : '0 1px 3px rgba(0, 0, 0, 0.06)'};
+  scrollbar-width: thin;
+  scrollbar-color: ${darkMode ? '#525252 #262626' : '#bdbdbd #f3f4f6'};
+
+  @media (max-width: 767.98px) {
+    max-height: min(62vh, 62dvh, 560px);
   }
 `

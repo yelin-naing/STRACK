@@ -9,6 +9,8 @@ backend/uploads/course_resources/*
 !backend/uploads/course_resources/.gitkeep
 !backend/uploads/course_resources/.htaccess
 
+backend/uploads/demo_assignments/*
+
 # OS
 .DS_Store
 Thumbs.db

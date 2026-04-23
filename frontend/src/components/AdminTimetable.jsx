@@ -93,7 +93,6 @@ function entrySubtitle(entry) {
   return entry.course_name || ''
 }
 
-/** Lecturers assigned to teach this module (matches strack_courses.lecturer_id → strack_lecturers.lecturer_id). */
 function lecturersForCourse(course, allLecturers) {
   if (!course) return []
   const raw = (course.lecturer_id || '').toString().trim()
@@ -397,7 +396,15 @@ const weekOuterStyles = (darkMode) => css`
   border: 1px solid ${darkMode ? '#404040' : '#e5e7eb'};
   border-radius: 12px;
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  max-height: min(78vh, 920px);
   background: ${darkMode ? '#1a1a1a' : '#fff'};
+  scrollbar-width: thin;
+
+  @media (max-width: 767.98px) {
+    max-height: min(68vh, 640px);
+  }
 `
 
 const weekHeadRowStyles = css`
@@ -616,10 +623,14 @@ const modalOverlayStyles = css`
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   z-index: 1000;
-  padding: 1rem;
+  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
+    max(1rem, env(safe-area-inset-left));
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 `
 
 const modalBoxStyles = (darkMode) => css`
@@ -627,8 +638,11 @@ const modalBoxStyles = (darkMode) => css`
   border-radius: 12px;
   width: 100%;
   max-width: 520px;
-  max-height: 90vh;
+  max-height: min(92vh, 92dvh, 900px);
+  margin: 0.5rem 0 1.5rem;
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
 `
 
@@ -737,14 +751,20 @@ const row2Styles = css`
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
+
+  @media (max-width: 520px) {
+    grid-template-columns: 1fr;
+  }
 `
 
 const lectListStyles = (darkMode) => css`
   border: 1px solid ${darkMode ? '#404040' : '#e5e7eb'};
   border-radius: 8px;
   padding: 0.5rem;
-  max-height: 160px;
+  max-height: min(160px, 35vh);
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 `
 
 const lectRowStyles = css`

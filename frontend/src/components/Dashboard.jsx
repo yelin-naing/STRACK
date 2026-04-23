@@ -1,15 +1,25 @@
 /** @jsxImportSource @emotion/react */
 import { css } from '@emotion/react'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import RewardsStore from './RewardsStore'
 import ProfilePasswordChange from './ProfilePasswordChange'
 import StudentCalendar from './StudentCalendar'
 import StudentBadges from './StudentBadges'
 import StudentCourses from './StudentCourses'
+import StudentClassmates from './StudentClassmates'
 import StudentLeaderboard from './StudentLeaderboard'
+import StudentAnnouncements from './StudentAnnouncements'
+import StudentDashboardOverview from './StudentDashboardOverview'
+import StudentBadgeRewardPopup from './StudentBadgeRewardPopup'
+import StudentStudyTimer from './StudentStudyTimer'
+import StudentAssignmentsGrades from './StudentAssignmentsGrades'
 import NotificationBell from './NotificationBell'
+import { StudyDndProvider } from '../context/StudyDndContext'
 import { useMobileDrawer } from '../hooks/useMobileDrawer'
+import { findStudentMe } from '../findStudentMe'
+import { getCoursesVisibleToStudent } from '../getCoursesVisibleToStudent'
+import { countUnlockedBadges } from '../badgeCatalog'
 import {
   appLayoutStyles,
   appSidebarStyles,
@@ -62,6 +72,7 @@ import {
 import {
   HiOutlineSquares2X2,
   HiOutlineBookOpen,
+  HiOutlineUserGroup,
   HiOutlineCalendar,
   HiOutlineChartBar,
   HiOutlineSparkles,
@@ -79,6 +90,8 @@ import {
   HiOutlineMapPin,
   HiOutlinePencil,
   HiOutlineDocumentText,
+  HiOutlinePlayCircle,
+  HiOutlineClipboardDocumentCheck,
 } from 'react-icons/hi2'
 
 const apiBase = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
@@ -327,7 +340,11 @@ const textStyles = css`
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: HiOutlineSquares2X2 },
+  { id: 'studyTimer', label: 'Study timer', icon: HiOutlinePlayCircle },
   { id: 'courses', label: 'Courses', icon: HiOutlineBookOpen },
+  { id: 'grades', label: 'Grades', icon: HiOutlineClipboardDocumentCheck },
+  { id: 'announcements', label: 'Announcements', icon: HiOutlineDocumentText },
+  { id: 'classmates', label: 'Classmates', icon: HiOutlineUserGroup },
   { id: 'calendar', label: 'Calendar', icon: HiOutlineCalendar },
   { id: 'leaderboard', label: 'Leaderboard', icon: HiOutlineChartBar },
   { id: 'badges', label: 'Badges', icon: HiOutlineSparkles },
@@ -365,13 +382,28 @@ function normalizeUkPhone(value) {
   return raw
 }
 
+function formatGpaDisplay(v) {
+  const n = Number(v)
+  if (!Number.isFinite(n)) return '—'
+  return n.toFixed(2)
+}
+
+function formatAttendanceDisplay(v) {
+  const n = Number(v)
+  if (!Number.isFinite(n)) return '—'
+  const r = Math.round(n * 10) / 10
+  return `${r}%`
+}
+
 function Dashboard({ darkMode, onToggleDarkMode }) {
   const navigate = useNavigate()
   const { mobileMenuOpen, setMobileMenuOpen, closeMenu } = useMobileDrawer()
   const [activeNav, setActiveNav] = useState('dashboard')
   const [userPoints, setUserPoints] = useState(0)
+  const [badgesRefreshKey, setBadgesRefreshKey] = useState(0)
   const [userEmail, setUserEmail] = useState('')
   const [studentId, setStudentId] = useState('STU001')
+  const [studentDatabaseId, setStudentDatabaseId] = useState(null)
   const [isEditingProfile, setIsEditingProfile] = useState(false)
   const [profileErrorMsg, setProfileErrorMsg] = useState('')
   const [profileInfo, setProfileInfo] = useState({
@@ -380,6 +412,12 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
     bio: 'Computer Science student passionate about software development.',
   })
   const [profileDraft, setProfileDraft] = useState(profileInfo)
+  const [dbStudent, setDbStudent] = useState(null)
+  const [profileDataLoading, setProfileDataLoading] = useState(false)
+  const [coursesVisibleCount, setCoursesVisibleCount] = useState(null)
+  const [badgesUnlockedCount, setBadgesUnlockedCount] = useState(null)
+  const [leaderboardPublicRank, setLeaderboardPublicRank] = useState(null)
+  const [profileDataKey, setProfileDataKey] = useState(0)
 
   let userName = 'Student'
   try {
@@ -390,6 +428,12 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
     }
   } catch (_) {}
 
+  const displayName = useMemo(() => {
+    const d = dbStudent?.full_name
+    if (d != null && String(d).trim() !== '') return String(d).trim()
+    return userName
+  }, [dbStudent, userName])
+
   useEffect(() => {
     try {
       const stored = localStorage.getItem('strack_user')
@@ -397,6 +441,14 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
         const user = JSON.parse(stored)
         if (user?.email) setUserEmail(user.email)
         if (user?.id) setStudentId(formatStudentId(user.id))
+        if (user?.student_db_id != null && Number.isFinite(Number(user.student_db_id))) {
+          setStudentDatabaseId(Number(user.student_db_id))
+        } else if (user?.id != null) {
+          const m = /^s(\d+)$/i.exec(String(user.id).trim())
+          setStudentDatabaseId(m ? Number(m[1]) : null)
+        } else {
+          setStudentDatabaseId(null)
+        }
       }
     } catch (_) {}
   }, [])
@@ -432,6 +484,64 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
   useEffect(() => {
     refreshPoints()
   }, [refreshPoints])
+
+  useEffect(() => {
+    if (!userEmail) {
+      setDbStudent(null)
+      setCoursesVisibleCount(null)
+      setBadgesUnlockedCount(null)
+      setLeaderboardPublicRank(null)
+      return undefined
+    }
+    let active = true
+    ;(async () => {
+      setProfileDataLoading(true)
+      try {
+        const [sRes, cRes, bRes, lRes] = await Promise.all([
+          fetch(`${apiBase}/backend/students.php?t=${Date.now()}`, { cache: 'no-store' }),
+          fetch(`${apiBase}/backend/courses.php?t=${Date.now()}`, { cache: 'no-store' }),
+          fetch(
+            `${apiBase}/backend/student_badges.php?user_email=${encodeURIComponent(userEmail)}&t=${Date.now()}`,
+            { cache: 'no-store' }
+          ),
+          fetch(
+            `${apiBase}/backend/leaderboard.php?scope=public&viewer_email=${encodeURIComponent(userEmail)}&t=${Date.now()}`,
+            { cache: 'no-store' }
+          ),
+        ])
+        const [sData, cData, bData, lData] = await Promise.all([sRes.json(), cRes.json(), bRes.json(), lRes.json()])
+        if (!active) return
+        const list = sData.success ? sData.students || [] : []
+        const me = findStudentMe(list, { userEmail, studentId, studentDatabaseId })
+        setDbStudent(me)
+        const courses = cData.success ? cData.courses || [] : []
+        const myCourses = me ? getCoursesVisibleToStudent(courses, me) : []
+        setCoursesVisibleCount(myCourses.length)
+        const awards = bData.success && Array.isArray(bData.awards) ? bData.awards : []
+        const pomo = Number(me?.pomodoro_sessions_count || 0)
+        setBadgesUnlockedCount(countUnlockedBadges(awards, pomo))
+        if (lData.success && Array.isArray(lData.entries)) {
+          const myRow = lData.entries.find((e) => e.is_me)
+          setLeaderboardPublicRank(myRow && typeof myRow.rank === 'number' ? myRow.rank : null)
+        } else {
+          setLeaderboardPublicRank(null)
+        }
+        await refreshPoints()
+      } catch (_) {
+        if (active) {
+          setDbStudent(null)
+          setCoursesVisibleCount(null)
+          setBadgesUnlockedCount(null)
+          setLeaderboardPublicRank(null)
+        }
+      } finally {
+        if (active) setProfileDataLoading(false)
+      }
+    })()
+    return () => {
+      active = false
+    }
+  }, [userEmail, studentId, studentDatabaseId, refreshPoints, profileDataKey])
 
   const handleLogout = () => {
     try {
@@ -479,6 +589,7 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
   }
 
   return (
+    <StudyDndProvider>
     <div css={appLayoutStyles(darkMode)}>
       {mobileMenuOpen ? (
         <button
@@ -494,7 +605,7 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
             <div css={logoIconStyles(darkMode)}>
               <HiOutlineAcademicCap />
             </div>
-            <span css={logoTextStyles(darkMode)}>Strack</span>
+            <span css={logoTextStyles(darkMode)}>STRACK</span>
           </div>
           <div css={css`display: flex; align-items: center; gap: 0.15rem; flex-shrink: 0;`}>
             <NotificationBell darkMode={darkMode} userEmail={userEmail} placement="sidebar" />
@@ -519,9 +630,9 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
         </header>
 
         <div css={profileStyles}>
-          <div css={avatarStyles}>{getInitials(userName)}</div>
+          <div css={avatarStyles}>{getInitials(displayName)}</div>
           <div css={profileInfoStyles}>
-            <div css={profileNameStyles(darkMode)}>{userName}</div>
+            <div css={profileNameStyles(darkMode)}>{displayName}</div>
             <div css={profileRoleStyles(darkMode)}>Student</div>
           </div>
         </div>
@@ -564,7 +675,7 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
           >
             <HiOutlineBars3 />
           </button>
-          <span css={appMobileTopBarTitle(darkMode)}>Strack</span>
+          <span css={appMobileTopBarTitle(darkMode)}>STRACK</span>
           <div css={css`display: inline-flex; align-items: center; gap: 0.3rem;`}>
             <NotificationBell darkMode={darkMode} userEmail={userEmail} />
             <button
@@ -590,26 +701,73 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
           css={contentStyles(
             darkMode,
             activeNav === 'profile',
-            activeNav === 'calendar' || activeNav === 'courses' || activeNav === 'leaderboard' || activeNav === 'badges'
+            activeNav === 'dashboard' ||
+              activeNav === 'studyTimer' ||
+              activeNav === 'calendar' ||
+              activeNav === 'courses' ||
+              activeNav === 'grades' ||
+              activeNav === 'announcements' ||
+              activeNav === 'classmates' ||
+              activeNav === 'leaderboard' ||
+              activeNav === 'badges'
           )}
         >
           {activeNav === 'dashboard' && (
-            <>
-              <h1 css={titleStyles}>Dashboard</h1>
-              <p css={textStyles}>
-                Welcome to the student portal. Here you can view your performance, grades, and progress.
-              </p>
-            </>
+            <StudentDashboardOverview
+              darkMode={darkMode}
+              userEmail={userEmail}
+              studentId={studentId}
+              studentDatabaseId={studentDatabaseId}
+              userName={displayName}
+              userPoints={userPoints}
+              onOpenAnnouncements={() => goNav('announcements')}
+            />
+          )}
+          {activeNav === 'studyTimer' && (
+            <StudentStudyTimer
+              darkMode={darkMode}
+              userEmail={userEmail}
+              studentId={studentId}
+              studentDatabaseId={studentDatabaseId}
+            />
           )}
           {activeNav === 'courses' && (
-            <StudentCourses darkMode={darkMode} userEmail={userEmail} studentId={studentId} />
+            <StudentCourses
+              darkMode={darkMode}
+              userEmail={userEmail}
+              studentId={studentId}
+              studentDatabaseId={studentDatabaseId}
+            />
+          )}
+          {activeNav === 'grades' && <StudentAssignmentsGrades darkMode={darkMode} userEmail={userEmail} />}
+          {activeNav === 'announcements' && (
+            <StudentAnnouncements darkMode={darkMode} userEmail={userEmail} />
+          )}
+          {activeNav === 'classmates' && (
+            <StudentClassmates
+              darkMode={darkMode}
+              userEmail={userEmail}
+              studentId={studentId}
+              studentDatabaseId={studentDatabaseId}
+            />
           )}
           {activeNav === 'calendar' && (
-            <StudentCalendar darkMode={darkMode} userEmail={userEmail} studentId={studentId} />
+            <StudentCalendar
+              darkMode={darkMode}
+              userEmail={userEmail}
+              studentId={studentId}
+              studentDatabaseId={studentDatabaseId}
+            />
           )}
           {activeNav === 'leaderboard' && <StudentLeaderboard darkMode={darkMode} userEmail={userEmail} />}
           {activeNav === 'badges' && (
-            <StudentBadges darkMode={darkMode} />
+            <StudentBadges
+              darkMode={darkMode}
+              userEmail={userEmail}
+              studentId={studentId}
+              studentDatabaseId={studentDatabaseId}
+              badgesRefreshKey={badgesRefreshKey}
+            />
           )}
           {activeNav === 'profile' && (
             <div css={profilePageWrap(darkMode)}>
@@ -622,15 +780,34 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
 
               <section css={profileTopCard(darkMode)}>
                 <div css={profileTopRow}>
-                  <div css={profileHeadBlock}>
-                    <div css={profileHeroAvatar}>{getInitials(userName)}</div>
+                    <div css={profileHeadBlock}>
+                    <div css={profileHeroAvatar}>{getInitials(displayName)}</div>
                     <div css={profileTextCol}>
-                      <h2 css={profileTitleName}>{userName}</h2>
-                      <div css={profileMetaLine(darkMode)}>Student ID: {studentId}</div>
-                      <div css={profileMetaLine(darkMode)}>Computer Science</div>
+                      <h2 css={profileTitleName}>{displayName}</h2>
+                      <div css={profileMetaLine(darkMode)}>
+                        Student ID: {dbStudent?.student_id != null && String(dbStudent.student_id).trim() !== '' ? String(dbStudent.student_id).trim() : studentId}
+                      </div>
+                      <div css={profileMetaLine(darkMode)}>
+                        {dbStudent
+                          ? [dbStudent.department, dbStudent.degree].filter((x) => x && String(x).trim() !== '').join(' · ') ||
+                            '—'
+                          : '—'}
+                      </div>
+                      <div css={profileMetaLine(darkMode)}>
+                        {dbStudent
+                          ? [
+                              dbStudent.year && `Year ${String(dbStudent.year).trim()}`,
+                              dbStudent.class_of && `Class of ${String(dbStudent.class_of).trim()}`,
+                            ]
+                              .filter(Boolean)
+                              .join(' · ') || '—'
+                          : '—'}
+                      </div>
                       <div css={profileBadgeRow}>
                         <span css={profileBadgeAccent}>Student</span>
-                        <span css={profileBadgeMuted(darkMode)}>Undergraduate</span>
+                        {dbStudent?.degree && String(dbStudent.degree).trim() !== '' ? (
+                          <span css={profileBadgeMuted(darkMode)}>{String(dbStudent.degree).trim()}</span>
+                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -657,24 +834,34 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
                     <HiOutlineSparkles aria-hidden />
                     <span css={kpiLabel}>Badges</span>
                   </div>
-                  <div css={kpiValue}>3</div>
-                  <div css={kpiSub(darkMode)}>Achievements</div>
+                  <div css={kpiValue}>
+                    {profileDataLoading ? '…' : badgesUnlockedCount != null ? badgesUnlockedCount : '—'}
+                  </div>
+                  <div css={kpiSub(darkMode)}>Unlocked (incl. Pomodoro)</div>
                 </article>
                 <article css={kpiCard(darkMode)}>
                   <div css={kpiLabelRow}>
                     <HiOutlineBookOpen aria-hidden />
                     <span css={kpiLabel}>Courses</span>
                   </div>
-                  <div css={kpiValue}>6</div>
-                  <div css={kpiSub(darkMode)}>Enrolled</div>
+                  <div css={kpiValue}>
+                    {profileDataLoading ? '…' : coursesVisibleCount != null ? coursesVisibleCount : '—'}
+                  </div>
+                  <div css={kpiSub(darkMode)}>Visible in portal</div>
                 </article>
                 <article css={kpiCard(darkMode)}>
                   <div css={kpiLabelRow}>
                     <HiOutlineChartBar aria-hidden />
                     <span css={kpiLabel}>Rank</span>
                   </div>
-                  <div css={kpiValue}>#3</div>
-                  <div css={kpiSub(darkMode)}>Leaderboard</div>
+                  <div css={kpiValue}>
+                    {profileDataLoading
+                      ? '…'
+                      : leaderboardPublicRank != null
+                        ? `#${leaderboardPublicRank}`
+                        : '—'}
+                  </div>
+                  <div css={kpiSub(darkMode)}>University (by points)</div>
                 </article>
               </section>
 
@@ -686,7 +873,7 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
                       {isEditingProfile ? (
                         <input
                           css={personalInputReadonly(darkMode)}
-                          value={userName}
+                          value={displayName}
                           readOnly
                           aria-readonly="true"
                         />
@@ -695,7 +882,7 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
                           <span css={personalValueIcon}>
                             <HiOutlineUser aria-hidden />
                           </span>
-                          <span css={personalValueText}>{userName}</span>
+                          <span css={personalValueText}>{displayName}</span>
                         </div>
                       )}
                     </div>
@@ -704,7 +891,7 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
                       {isEditingProfile ? (
                         <input
                           css={personalInputReadonly(darkMode)}
-                          value={userEmail || 'student@uni.ac.uk'}
+                          value={dbStudent?.email || userEmail || ''}
                           readOnly
                           aria-readonly="true"
                         />
@@ -713,10 +900,45 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
                           <span css={personalValueIcon}>
                             <HiOutlineEnvelope aria-hidden />
                           </span>
-                          <span css={personalValueText}>{userEmail || 'student@uni.ac.uk'}</span>
+                          <span css={personalValueText}>{dbStudent?.email || userEmail || '—'}</span>
                         </div>
                       )}
                     </div>
+                    {dbStudent ? (
+                      <>
+                        <div css={personalField}>
+                          <span css={personalLabel}>Department</span>
+                          <div css={personalValue(darkMode)}>
+                            <span css={personalValueText}>
+                              {String(dbStudent.department || '').trim() || '—'}
+                            </span>
+                          </div>
+                        </div>
+                        <div css={personalField}>
+                          <span css={personalLabel}>GPA</span>
+                          <div css={personalValue(darkMode)}>
+                            <span css={personalValueText}>{formatGpaDisplay(dbStudent.gpa)}</span>
+                          </div>
+                        </div>
+                        <div css={personalField}>
+                          <span css={personalLabel}>Attendance (overall)</span>
+                          <div css={personalValue(darkMode)}>
+                            <span css={personalValueText}>{formatAttendanceDisplay(dbStudent.attendance)}</span>
+                          </div>
+                        </div>
+                      </>
+                    ) : null}
+                    <p
+                      css={css`
+                        grid-column: 1 / -1;
+                        margin: 0.25rem 0 0;
+                        font-size: 0.8rem;
+                        color: ${darkMode ? '#9ca3af' : '#6b7280'};
+                      `}
+                    >
+                      Phone, address, and bio are saved in this browser. Name, ID, and academic fields come from the
+                      university record.
+                    </p>
                     <div css={personalField}>
                       <span css={personalLabel}>Phone Number</span>
                       {isEditingProfile ? (
@@ -791,6 +1013,16 @@ function Dashboard({ darkMode, onToggleDarkMode }) {
       </main>
       </div>
     </div>
+    <StudentBadgeRewardPopup
+      darkMode={darkMode}
+      userEmail={userEmail}
+      onAcknowledged={() => {
+        refreshPoints()
+        setBadgesRefreshKey((k) => k + 1)
+        setProfileDataKey((k) => k + 1)
+      }}
+    />
+    </StudyDndProvider>
   )
 }
 

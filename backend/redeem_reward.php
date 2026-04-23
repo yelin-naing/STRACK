@@ -23,14 +23,14 @@ $email = trim($input['email'] ?? '');
 $rewardId = trim($input['rewardId'] ?? '');
 
 $costs = [
-    'food_drink' => 300,
-    'discount_local' => 400,
-    'digital_custom' => 250,
-    'uni_merch' => 550,
-    'recognition' => 200,
-    'print_credits' => 150,
-    'charity' => 350,
-    'priority_booking' => 800,
+    'food_drink' => 500,
+    'discount_local' => 600,
+    'digital_custom' => 350,
+    'uni_merch' => 800,
+    'recognition' => 300,
+    'print_credits' => 250,
+    'charity' => 550,
+    'priority_booking' => 1000,
 ];
 
 if ($email === '' || $rewardId === '') {

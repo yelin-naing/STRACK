@@ -391,7 +391,14 @@ function LecturerCalendar({ darkMode, userEmail }) {
     if (!lecturer) return []
     const myCourseIds = new Set(myCourses.map((c) => Number(c.id)))
     return entries.filter((e) => {
-      if (e.entry_type === 'class') return myCourseIds.has(Number(e.course_id))
+      if (e.entry_type === 'class') {
+        const cid = Number(e.course_id)
+        return Number.isFinite(cid) && cid > 0 && myCourseIds.has(cid)
+      }
+      const cid = e.course_id != null && e.course_id !== '' ? Number(e.course_id) : NaN
+      const schoolWide = !Number.isFinite(cid) || cid <= 0
+      if (schoolWide) return true
+      if (myCourseIds.has(cid)) return true
       return Array.isArray(e.lecturers) && e.lecturers.some((l) => Number(l.id) === Number(lecturer.id))
     })
   }, [entries, lecturer, myCourses])

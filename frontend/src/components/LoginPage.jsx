@@ -1,7 +1,61 @@
 /** @jsxImportSource @emotion/react */
-import { css } from '@emotion/react'
+import { css, keyframes } from '@emotion/react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+
+const motionOk = '@media (prefers-reduced-motion: no-preference)'
+
+const loginRevealUp = keyframes`
+  from {
+    opacity: 0;
+    transform: translate3d(0, 40px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+`
+
+const loginRevealScale = keyframes`
+  from {
+    opacity: 0;
+    transform: translate3d(0, 32px, 0) scale(0.88);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+`
+
+const loginSceneEnter = keyframes`
+  from {
+    transform: rotate(-6deg) translate3d(36px, 44px, 0) scale(0.82);
+  }
+  to {
+    transform: rotate(-6deg) translate3d(0, 0, 0) scale(1);
+  }
+`
+
+const brandGlowPulse = keyframes`
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.52;
+  }
+`
+
+const orbDrift = keyframes`
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  33% {
+    transform: translate3d(10%, -8%, 0) scale(1.14);
+  }
+  66% {
+    transform: translate3d(-9%, 11%, 0) scale(0.9);
+  }
+`
 
 const apiBase = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
 
@@ -32,6 +86,23 @@ const brandPanel = (dark) => css`
     ? 'linear-gradient(145deg, #0a1628 0%, #121a24 45%, #0f1419 100%)'
     : 'linear-gradient(145deg, #e8eef5 0%, #dce6f0 50%, #d4e0ed 100%)'};
   color: ${dark ? '#e8edf4' : '#0f172a'};
+  &::before {
+    content: '';
+    position: absolute;
+    width: min(56rem, 175%);
+    height: min(56rem, 175%);
+    right: -28%;
+    bottom: -38%;
+    border-radius: 50%;
+    background: ${dark
+      ? 'radial-gradient(circle, rgba(124, 58, 237, 0.22) 0%, rgba(56, 189, 248, 0.08) 42%, transparent 68%)'
+      : 'radial-gradient(circle, rgba(99, 102, 241, 0.2) 0%, rgba(59, 130, 246, 0.1) 45%, transparent 70%)'};
+    pointer-events: none;
+    z-index: 0;
+    ${motionOk} {
+      animation: ${orbDrift} 22s ease-in-out infinite;
+    }
+  }
   &::after {
     content: '';
     position: absolute;
@@ -40,13 +111,239 @@ const brandPanel = (dark) => css`
       ? 'radial-gradient(ellipse 80% 50% at 20% 20%, rgba(56, 189, 248, 0.12), transparent 55%)'
       : 'radial-gradient(ellipse 70% 45% at 15% 15%, rgba(59, 130, 246, 0.15), transparent 50%)'};
     pointer-events: none;
+    z-index: 0;
+    ${motionOk} {
+      animation: ${brandGlowPulse} 8s ease-in-out infinite;
+    }
   }
 `
 
 const brandInner = css`
   position: relative;
-  z-index: 1;
+  z-index: 2;
   max-width: 28rem;
+`
+
+const activityScene = (dark) => css`
+  position: absolute;
+  right: clamp(-6rem, -14vw, -1rem);
+  bottom: clamp(-5rem, -12vw, -1.5rem);
+  width: min(34rem, 88vw);
+  aspect-ratio: 1 / 0.9;
+  z-index: 1;
+  opacity: ${dark ? 0.78 : 0.7};
+  pointer-events: none;
+  transform: rotate(-6deg);
+  @media (min-width: 900px) {
+    right: clamp(0.5rem, 3vw, 3.5rem);
+    bottom: clamp(1.5rem, 7vh, 5.5rem);
+    width: min(42rem, 52vw);
+    opacity: 0.95;
+  }
+  ${motionOk} {
+    animation: ${loginSceneEnter} 1.15s cubic-bezier(0.22, 1, 0.36, 1) 0.18s both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    animation: none !important;
+    * {
+      animation: none !important;
+    }
+  }
+`
+
+const sceneTrack = (dark) => css`
+  position: absolute;
+  inset: 10% 4% 16% 10%;
+  border-radius: 8px;
+  border: 1px solid ${dark ? 'rgba(148, 163, 184, 0.16)' : 'rgba(37, 99, 235, 0.13)'};
+  background:
+    linear-gradient(${dark ? 'rgba(148, 163, 184, 0.08)' : 'rgba(37, 99, 235, 0.08)'} 1px, transparent 1px),
+    linear-gradient(90deg, ${dark ? 'rgba(148, 163, 184, 0.08)' : 'rgba(37, 99, 235, 0.08)'} 1px, transparent 1px);
+  background-size: 48px 48px;
+  box-shadow: inset 0 1px 0 ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.6)'};
+  ${motionOk} {
+    animation: strack-grid-drift 26s linear infinite;
+  }
+  @keyframes strack-grid-drift {
+    from {
+      background-position: 0 0, 0 0;
+    }
+    to {
+      background-position: 144px 72px, -96px 52px;
+    }
+  }
+`
+
+const scenePanel = (dark, index) => css`
+  position: absolute;
+  left: ${index === 0 ? '0' : index === 1 ? '46%' : '17%'};
+  top: ${index === 0 ? '18%' : index === 1 ? '8%' : '58%'};
+  width: ${index === 1 ? '12.5rem' : '14rem'};
+  border-radius: 8px;
+  padding: 0.8rem;
+  background: ${dark ? 'rgba(15, 23, 42, 0.76)' : 'rgba(255, 255, 255, 0.78)'};
+  border: 1px solid ${dark ? 'rgba(148, 163, 184, 0.18)' : 'rgba(37, 99, 235, 0.13)'};
+  box-shadow: ${dark ? '0 18px 36px rgba(0, 0, 0, 0.32)' : '0 18px 36px rgba(37, 99, 235, 0.13)'};
+  backdrop-filter: blur(14px);
+  animation: strack-panel-float-${index} ${index === 1 ? '7.8s' : '8.6s'}
+    cubic-bezier(0.42, 0, 0.2, 1) infinite;
+  animation-delay: ${index * -1.55}s;
+  @media (max-width: 520px) {
+    width: ${index === 1 ? '10.5rem' : '11.5rem'};
+  }
+  @keyframes strack-panel-float-0 {
+    0%, 100% {
+      transform: translate3d(0, 0, 0);
+    }
+    50% {
+      transform: translate3d(0.95rem, -1.35rem, 0);
+    }
+  }
+  @keyframes strack-panel-float-1 {
+    0%, 100% {
+      transform: translate3d(0, 0, 0);
+    }
+    50% {
+      transform: translate3d(-1.1rem, 1.1rem, 0);
+    }
+  }
+  @keyframes strack-panel-float-2 {
+    0%, 100% {
+      transform: translate3d(0, 0, 0);
+    }
+    50% {
+      transform: translate3d(1.15rem, 0.95rem, 0);
+    }
+  }
+`
+
+const panelTopline = (dark) => css`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+  color: ${dark ? '#e2e8f0' : '#1e293b'};
+  font-size: 0.78rem;
+  font-weight: 700;
+`
+
+const panelBadge = (dark) => css`
+  border-radius: 999px;
+  padding: 0.16rem 0.45rem;
+  color: ${dark ? '#bfdbfe' : '#1d4ed8'};
+  background: ${dark ? 'rgba(37, 99, 235, 0.18)' : 'rgba(37, 99, 235, 0.1)'};
+  font-size: 0.68rem;
+  font-weight: 700;
+`
+
+const metricValue = (dark) => css`
+  margin: 0 0 0.55rem;
+  color: ${dark ? '#f8fafc' : '#0f172a'};
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+`
+
+const progressBar = (dark, delay = '0s') => css`
+  height: 0.45rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: ${dark ? 'rgba(148, 163, 184, 0.18)' : 'rgba(148, 163, 184, 0.22)'};
+  &::before {
+    content: '';
+    display: block;
+    height: 100%;
+    width: 76%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #7c3aed, #38bdf8, #22c55e);
+    transform-origin: left;
+    animation: strack-progress 4.2s cubic-bezier(0.45, 0, 0.35, 1) infinite;
+    animation-delay: ${delay};
+  }
+  @keyframes strack-progress {
+    0%, 100% {
+      transform: scaleX(0.38);
+    }
+    45%, 70% {
+      transform: scaleX(1);
+    }
+  }
+`
+
+const miniBars = css`
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  align-items: end;
+  gap: 0.32rem;
+  height: 3.1rem;
+`
+
+const miniBar = (dark, index) => css`
+  height: ${[42, 66, 50, 78, 58, 86, 70][index]}%;
+  min-height: 0.45rem;
+  border-radius: 6px 6px 2px 2px;
+  background: ${index % 3 === 0
+    ? 'linear-gradient(180deg, #38bdf8, #2563eb)'
+    : index % 3 === 1
+      ? 'linear-gradient(180deg, #a78bfa, #7c3aed)'
+      : 'linear-gradient(180deg, #34d399, #059669)'};
+  opacity: ${dark ? 0.9 : 0.82};
+  animation: strack-bar-rise 3.2s cubic-bezier(0.45, 0, 0.35, 1) infinite;
+  animation-delay: ${index * -0.18}s;
+  @keyframes strack-bar-rise {
+    0%, 100% {
+      transform: scaleY(0.55);
+    }
+    45% {
+      transform: scaleY(1);
+    }
+  }
+`
+
+const timeline = css`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+`
+
+const timelineRow = (dark, index) => css`
+  display: grid;
+  grid-template-columns: 0.55rem 1fr;
+  align-items: center;
+  gap: 0.45rem;
+  &::before {
+    content: '';
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 3px;
+    background: ${index === 0 ? '#38bdf8' : index === 1 ? '#a78bfa' : '#34d399'};
+    box-shadow: 0 0 0 4px ${dark ? 'rgba(96, 165, 250, 0.12)' : 'rgba(37, 99, 235, 0.1)'};
+    animation: strack-tick 3.4s cubic-bezier(0.45, 0, 0.35, 1) infinite;
+    animation-delay: ${index * -0.42}s;
+  }
+  span {
+    height: 0.48rem;
+    border-radius: 999px;
+    background: ${dark ? 'rgba(226, 232, 240, 0.22)' : 'rgba(30, 41, 59, 0.18)'};
+    overflow: hidden;
+  }
+  span::after {
+    content: '';
+    display: block;
+    width: ${[72, 58, 86][index]}%;
+    height: 100%;
+    border-radius: inherit;
+    background: ${dark ? 'rgba(226, 232, 240, 0.42)' : 'rgba(37, 99, 235, 0.36)'};
+  }
+  @keyframes strack-tick {
+    0%, 100% {
+      transform: scale(0.82);
+    }
+    45% {
+      transform: scale(1.35);
+    }
+  }
 `
 
 const wordmark = (dark) => css`
@@ -56,6 +353,9 @@ const wordmark = (dark) => css`
   line-height: 1.05;
   margin-bottom: 0.75rem;
   color: ${dark ? '#f8fafc' : '#0f172a'};
+  ${motionOk} {
+    animation: ${loginRevealUp} 0.82s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both;
+  }
 `
 
 const tagline = (dark) => css`
@@ -63,6 +363,9 @@ const tagline = (dark) => css`
   line-height: 1.55;
   color: ${dark ? 'rgba(226, 232, 240, 0.78)' : 'rgba(15, 23, 42, 0.72)'};
   max-width: 22rem;
+  ${motionOk} {
+    animation: ${loginRevealUp} 0.88s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
+  }
 `
 
 const formPanel = (dark) => css`
@@ -85,6 +388,9 @@ const card = (dark) => css`
   box-shadow: ${dark
     ? '0 24px 48px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255,255,255,0.06)'
     : '0 20px 40px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(15, 23, 42, 0.06)'};
+  ${motionOk} {
+    animation: ${loginRevealScale} 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+  }
 `
 
 const cardTitle = (dark) => css`
@@ -362,8 +668,47 @@ function LoginPage({ darkMode, onToggleDarkMode }) {
       </button>
 
       <section css={brandPanel(darkMode)} aria-hidden="false">
+        <div css={activityScene(darkMode)} aria-hidden="true">
+          <div css={sceneTrack(darkMode)} />
+
+          <div css={scenePanel(darkMode, 0)}>
+            <div css={panelTopline(darkMode)}>
+              <span>Attendance</span>
+              <span css={panelBadge(darkMode)}>Live</span>
+            </div>
+            <p css={metricValue(darkMode)}>92%</p>
+            <div css={progressBar(darkMode)} />
+          </div>
+
+          <div css={scenePanel(darkMode, 1)}>
+            <div css={panelTopline(darkMode)}>
+              <span>Points</span>
+              <span css={panelBadge(darkMode)}>+18</span>
+            </div>
+            <div css={miniBars}>
+              {[0, 1, 2, 3, 4, 5, 6].map((bar) => (
+                <span key={bar} css={miniBar(darkMode, bar)} />
+              ))}
+            </div>
+          </div>
+
+          <div css={scenePanel(darkMode, 2)}>
+            <div css={panelTopline(darkMode)}>
+              <span>Modules</span>
+              <span css={panelBadge(darkMode)}>Now</span>
+            </div>
+            <div css={timeline}>
+              {[0, 1, 2].map((row) => (
+                <div key={row} css={timelineRow(darkMode, row)}>
+                  <span />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
         <div css={brandInner}>
-          <h1 css={wordmark(darkMode)}>Strack</h1>
+          <h1 css={wordmark(darkMode)}>STRACK</h1>
           <p css={tagline(darkMode)}>
             Sign in to track attendance, engagement, and performance in one place.
           </p>

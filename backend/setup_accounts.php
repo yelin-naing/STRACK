@@ -216,7 +216,7 @@ try {
     echo '<p><strong>strack_lecturers</strong>: profile for the test lecturer (LEC_SEED).</p>';
     echo '<p><strong>strack_students</strong>: test student <strong>student@uni.ac.uk</strong> / <strong>student123</strong> (10,000 points for Rewards testing; others set to 0)</p>';
     echo '<p><strong>Admin:</strong> admin@uni.ac.uk / admin123 &nbsp;|&nbsp; <strong>Lecturer:</strong> lecturer@uni.ac.uk / lecturer123</p>';
-    echo '<p><a href="check.php">Check database</a> | <a href="../">Go to login</a></p>';
+    echo '<p><a href="../">Go to login</a></p>';
 } catch (PDOException $e) {
     echo '<h2>Error</h2><p>' . htmlspecialchars($e->getMessage()) . '</p>';
 }

@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   HiOutlineCalendarDays,
   HiOutlineCheckCircle,
-  HiOutlineClock,
   HiOutlineUsers,
   HiOutlineXCircle,
 } from 'react-icons/hi2'
@@ -26,8 +25,22 @@ function todaysYmd() {
   return `${y}-${m}-${day}`
 }
 
-function attendanceStorageKey(userEmail, courseId, dateYmd) {
-  return `strack_attendance_${String(userEmail || '').toLowerCase()}_${courseId}_${dateYmd}`
+function getAttendanceRangeYmd() {
+  const now = new Date()
+  const from = new Date(now)
+  const to = new Date(now)
+  from.setDate(now.getDate() - 365)
+  to.setDate(now.getDate() + 365)
+  const toYmd = (d) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return { from: toYmd(from), to: toYmd(to) }
+}
+
+function fmtHm(value) {
+  const txt = String(value || '')
+  const parts = txt.split(':')
+  if (parts.length < 2) return txt
+  return `${parts[0]}:${parts[1]}`
 }
 
 function initials(name) {
@@ -112,6 +125,16 @@ const selectStyles = (darkMode) => css`
   padding: 0.7rem 0.8rem;
   font-size: 1rem;
   font-family: inherit;
+`
+
+const filterGridStyles = css`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+
+  @media (max-width: 980px) {
+    grid-template-columns: 1fr;
+  }
 `
 
 const todayChipStyles = (darkMode) => css`
@@ -273,17 +296,15 @@ const emptyStateStyles = (darkMode) => css`
 
 function LecturerAttendance({ darkMode, userEmail }) {
   const [lecturerId, setLecturerId] = useState('')
+  const [lecturerAccountId, setLecturerAccountId] = useState('')
   const [courses, setCourses] = useState([])
+  const [dayClasses, setDayClasses] = useState([])
   const [selectedCourseId, setSelectedCourseId] = useState('')
+  const [selectedClassId, setSelectedClassId] = useState('')
   const [marks, setMarks] = useState({})
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState('')
-
-  const todayYmd = useMemo(() => todaysYmd(), [])
-  const todayLabel = useMemo(
-    () => new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
-    []
-  )
 
   useEffect(() => {
     let active = true
@@ -302,13 +323,16 @@ function LecturerAttendance({ darkMode, userEmail }) {
           (l) => String(l.email || '').trim().toLowerCase() === String(userEmail || '').trim().toLowerCase()
         )
         const lid = String(me?.lecturer_id || '')
+        const aid = String(me?.id || '')
         setLecturerId(lid)
+        setLecturerAccountId(aid)
         const allCourses = courseData.success ? courseData.courses || [] : []
         const mine = allCourses.filter((c) => String(c.lecturer_id || '').trim() === lid)
         setCourses(mine)
       } catch (_) {
         if (!active) return
         setLecturerId('')
+        setLecturerAccountId('')
         setCourses([])
       } finally {
         if (active) setLoading(false)
@@ -321,19 +345,59 @@ function LecturerAttendance({ darkMode, userEmail }) {
   }, [userEmail])
 
   useEffect(() => {
-    if (!selectedCourseId) {
-      setMarks({})
-      return
+    let active = true
+    async function loadDayClasses() {
+      if (!lecturerAccountId && courses.length === 0) {
+        setDayClasses([])
+        setSelectedClassId('')
+        return
+      }
+      try {
+        const range = getAttendanceRangeYmd()
+        const res = await fetch(
+          `${apiBase}/backend/timetable.php?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}&t=${Date.now()}`,
+          { cache: 'no-store' }
+        )
+        const data = await res.json()
+        if (!active) return
+        const entries = data.success ? data.entries || [] : []
+        const myCourseIds = new Set(courses.map((course) => String(course.id)))
+        const mine = entries.filter((entry) => {
+          if (entry.entry_type !== 'class') return false
+          const assignedByLecturer = Array.isArray(entry.lecturers)
+            ? entry.lecturers.some((l) => Number(l.id) === Number(lecturerAccountId))
+            : false
+          const assignedByCourse = myCourseIds.has(String(entry.course_id || ''))
+          return assignedByLecturer || assignedByCourse
+        })
+        setDayClasses(mine)
+      } catch (_) {
+        if (!active) return
+        setDayClasses([])
+      }
     }
-    try {
-      const key = attendanceStorageKey(userEmail, selectedCourseId, todayYmd)
-      const raw = localStorage.getItem(key)
-      const parsed = raw ? JSON.parse(raw) : {}
-      setMarks(parsed && typeof parsed === 'object' ? parsed : {})
-    } catch (_) {
-      setMarks({})
+    loadDayClasses()
+    return () => {
+      active = false
     }
-  }, [selectedCourseId, userEmail, todayYmd])
+  }, [courses, lecturerAccountId])
+
+  useEffect(() => {
+    setSelectedClassId((prev) => {
+      const options = dayClasses.filter(
+        (entry) => String(entry.course_id || '') === String(selectedCourseId)
+      )
+      if (options.some((entry) => String(entry.id) === String(prev))) return prev
+      return options[0] ? String(options[0].id) : ''
+    })
+  }, [dayClasses, selectedCourseId])
+
+  useEffect(() => {
+    if (!selectedClassId) return
+    const chosen = dayClasses.find((entry) => String(entry.id) === String(selectedClassId))
+    const cid = chosen?.course_id != null ? String(chosen.course_id) : ''
+    if (cid && cid !== selectedCourseId) setSelectedCourseId(cid)
+  }, [dayClasses, selectedClassId, selectedCourseId])
 
   const selectedCourse = useMemo(
     () => courses.find((c) => String(c.id) === String(selectedCourseId)) || null,
@@ -344,6 +408,62 @@ function LecturerAttendance({ darkMode, userEmail }) {
     () => (Array.isArray(selectedCourse?.students) ? selectedCourse.students : []),
     [selectedCourse]
   )
+
+  const classOptions = useMemo(
+    () =>
+      dayClasses.filter(
+        (entry) => String(entry.course_id || '') === String(selectedCourseId)
+      ),
+    [dayClasses, selectedCourseId]
+  )
+
+  const selectedClass = useMemo(
+    () => classOptions.find((entry) => String(entry.id) === String(selectedClassId)) || null,
+    [classOptions, selectedClassId]
+  )
+  const classDateYmd = selectedClass?.entry_date || todaysYmd()
+  const classDateLabel = useMemo(
+    () =>
+      new Date(`${classDateYmd}T00:00:00`).toLocaleDateString(undefined, {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      }),
+    [classDateYmd]
+  )
+
+  useEffect(() => {
+    if (!selectedCourseId || !selectedClassId) {
+      setMarks({})
+      return
+    }
+    let active = true
+    async function loadMarks() {
+      try {
+        const query = new URLSearchParams({
+          user_email: userEmail,
+          class_id: String(selectedClassId),
+        })
+        const res = await fetch(`${apiBase}/backend/attendance_marks.php?${query.toString()}`, {
+          cache: 'no-store',
+        })
+        const data = await res.json()
+        if (!active) return
+        if (data?.success && data.marks && typeof data.marks === 'object') {
+          setMarks(data.marks)
+        } else {
+          setMarks({})
+        }
+      } catch (_) {
+        if (active) setMarks({})
+      }
+    }
+    loadMarks()
+    return () => {
+      active = false
+    }
+  }, [selectedClassId, selectedCourseId, userEmail])
 
   const counts = useMemo(() => {
     const total = students.length
@@ -357,16 +477,28 @@ function LecturerAttendance({ darkMode, userEmail }) {
     setMarks((prev) => ({ ...prev, [studentId]: status }))
   }
 
-  const handleSave = () => {
-    if (!selectedCourseId) return
+  const handleSave = async () => {
+    if (!selectedCourseId || !selectedClassId) return
+    setSaving(true)
     try {
-      const key = attendanceStorageKey(userEmail, selectedCourseId, todayYmd)
-      localStorage.setItem(key, JSON.stringify(marks))
-      setSaveMessage('Attendance saved for today.')
+      const res = await fetch(`${apiBase}/backend/attendance_marks.php`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_email: userEmail,
+          class_id: Number(selectedClassId),
+          marks,
+        }),
+      })
+      const data = await res.json()
+      if (!data?.success) throw new Error(data?.error || 'Failed to save attendance')
+      setSaveMessage(`Attendance saved for ${classDateLabel}.`)
       window.setTimeout(() => setSaveMessage(''), 2200)
     } catch (_) {
-      setSaveMessage('Could not save attendance locally.')
+      setSaveMessage('Could not save attendance to database.')
       window.setTimeout(() => setSaveMessage(''), 2200)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -384,29 +516,55 @@ function LecturerAttendance({ darkMode, userEmail }) {
 
       <section css={panelStyles(darkMode)}>
         <h2 css={panelTitleStyles}>Select Module</h2>
-        <p css={panelSubStyles(darkMode)}>Choose a module to mark attendance</p>
-        <select
-          css={selectStyles(darkMode)}
-          value={selectedCourseId}
-          onChange={(e) => setSelectedCourseId(e.target.value)}
-          disabled={loading || courses.length === 0}
-        >
-          <option value="">Select a module</option>
-          {courses.map((course) => (
-            <option key={course.id} value={String(course.id)}>
-              {course.course_code} - {course.course_name}
+        <p css={panelSubStyles(darkMode)}>
+          Choose a module, then select one assigned class to mark attendance.
+        </p>
+        <div css={filterGridStyles}>
+          <select
+            css={selectStyles(darkMode)}
+            value={selectedCourseId}
+            onChange={(e) => setSelectedCourseId(e.target.value)}
+            disabled={loading || courses.length === 0}
+          >
+            <option value="">Select a module</option>
+            {courses.map((course) => (
+              <option key={course.id} value={String(course.id)}>
+                {course.course_code} - {course.course_name}
+              </option>
+            ))}
+          </select>
+          <select
+            css={selectStyles(darkMode)}
+            value={selectedClassId}
+            onChange={(e) => setSelectedClassId(e.target.value)}
+            disabled={!selectedCourseId || loading || classOptions.length === 0}
+          >
+            <option value="">
+              {selectedCourseId ? 'Select an assigned class' : 'Select a module first'}
             </option>
-          ))}
-        </select>
-        {selectedCourseId ? <div css={todayChipStyles(darkMode)}>Today: {todayLabel}</div> : null}
+            {classOptions.map((entry) => (
+              <option key={entry.id} value={String(entry.id)}>
+                {entry.course_code || 'Class'} | {entry.entry_date} | {fmtHm(entry.start_time)}-{fmtHm(entry.end_time)}
+              </option>
+            ))}
+          </select>
+        </div>
+        {selectedCourseId ? (
+          <div css={todayChipStyles(darkMode)}>
+            Classes found: {classOptions.length}
+            {selectedClass ? ` | Class date: ${classDateLabel}` : ''}
+          </div>
+        ) : null}
       </section>
 
-      {!selectedCourseId ? (
+      {!selectedCourseId || !selectedClassId ? (
         <div css={emptyStateStyles(darkMode)}>
           <div>
             <HiOutlineUsers style={{ width: 38, height: 38, opacity: 0.5 }} />
-            <h3 css={css`margin: 0.75rem 0 0.35rem; font-size: 1.75rem;`}>Select a module to begin</h3>
-            <p css={mutedStyles(darkMode)}>Choose a module from the dropdown above to mark attendance</p>
+            <h3 css={css`margin: 0.75rem 0 0.35rem; font-size: 1.75rem;`}>Select module and class to begin</h3>
+            <p css={mutedStyles(darkMode)}>
+              After choosing a module, select one assigned class to show enrolled students.
+            </p>
           </div>
         </div>
       ) : (
@@ -418,7 +576,7 @@ function LecturerAttendance({ darkMode, userEmail }) {
                 <p css={panelSubStyles(darkMode)}>Mark attendance for each student</p>
               </div>
               <button type="button" css={saveBtnStyles} onClick={handleSave}>
-                Save Attendance
+                {saving ? 'Saving...' : 'Save Attendance'}
               </button>
             </div>
 
@@ -443,14 +601,6 @@ function LecturerAttendance({ darkMode, userEmail }) {
                       aria-label={`Mark ${student.full_name} present`}
                     >
                       <HiOutlineCheckCircle />
-                    </button>
-                    <button
-                      type="button"
-                      css={actionBtnStyles(darkMode, status === 'late')}
-                      onClick={() => setStatus(student.id, 'late')}
-                      aria-label={`Mark ${student.full_name} late`}
-                    >
-                      <HiOutlineClock />
                     </button>
                     <button
                       type="button"
@@ -480,7 +630,7 @@ function LecturerAttendance({ darkMode, userEmail }) {
               <p css={statValueStyles}>{counts.total}</p>
             </article>
             <article css={statCardStyles(darkMode)}>
-              <h3 css={statTitleStyles}>Marked Today</h3>
+              <h3 css={statTitleStyles}>Marked for Class</h3>
               <p css={statValueStyles}>{counts.marked}</p>
             </article>
             <article css={statCardStyles(darkMode)}>

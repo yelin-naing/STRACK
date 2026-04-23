@@ -1,7 +1,8 @@
 /** @jsxImportSource @emotion/react */
 import { css } from '@emotion/react'
 import { useEffect, useRef, useState } from 'react'
-import { HiOutlineBell } from 'react-icons/hi2'
+import { HiOutlineBell, HiOutlineBellSlash } from 'react-icons/hi2'
+import { useStudyDnd } from '../context/StudyDndContext'
 
 const apiBase = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
 const ACCENT = '#6366f1'
@@ -10,7 +11,7 @@ const wrapStyles = css`
   position: relative;
 `
 
-const bellBtnStyles = (darkMode) => css`
+const bellBtnStyles = (darkMode, muted) => css`
   position: relative;
   width: 44px;
   height: 44px;
@@ -21,9 +22,10 @@ const bellBtnStyles = (darkMode) => css`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
+  cursor: ${muted ? 'not-allowed' : 'pointer'};
+  opacity: ${muted ? 0.48 : 1};
   &:hover {
-    background: ${darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)'};
+    background: ${muted ? 'transparent' : darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)'};
   }
 `
 
@@ -135,6 +137,7 @@ const panelStyles = (darkMode, placement) => css`
 `
 
 function NotificationBell({ darkMode, userEmail, placement = 'default' }) {
+  const { simulatedDnd } = useStudyDnd()
   const wrapRef = useRef(null)
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -167,15 +170,22 @@ function NotificationBell({ darkMode, userEmail, placement = 'default' }) {
   }
 
   useEffect(() => {
+    if (simulatedDnd) {
+      setOpen(false)
+    }
+  }, [simulatedDnd])
+
+  useEffect(() => {
+    if (!userEmail || simulatedDnd) return undefined
     loadNotifications()
     const timer = window.setInterval(loadNotifications, 45000)
     return () => window.clearInterval(timer)
-  }, [userEmail])
+  }, [userEmail, simulatedDnd])
 
   useEffect(() => {
-    if (!open) return
+    if (!open || simulatedDnd) return
     loadNotifications()
-  }, [open])
+  }, [open, simulatedDnd])
 
   useEffect(() => {
     const onDocClick = (e) => {
@@ -214,16 +224,29 @@ function NotificationBell({ darkMode, userEmail, placement = 'default' }) {
     <div css={wrapStyles} ref={wrapRef}>
       <button
         type="button"
-        css={bellBtnStyles(darkMode)}
-        onClick={() => setOpen((v) => !v)}
-        aria-label="Notifications"
-        title="Notifications"
+        css={bellBtnStyles(darkMode, simulatedDnd)}
+        onClick={() => {
+          if (simulatedDnd) return
+          setOpen((v) => !v)
+        }}
+        aria-label={simulatedDnd ? 'Notifications (Do Not Disturb — panel disabled)' : 'Notifications'}
+        title={
+          simulatedDnd
+            ? 'Notifications are simulated as muted while the study timer runs.'
+            : 'Notifications'
+        }
       >
-        <HiOutlineBell style={{ width: 22, height: 22 }} />
-        {unreadCount > 0 ? <span css={badgeStyles}>{unreadCount > 9 ? '9+' : unreadCount}</span> : null}
+        {simulatedDnd ? (
+          <HiOutlineBellSlash style={{ width: 22, height: 22 }} aria-hidden />
+        ) : (
+          <HiOutlineBell style={{ width: 22, height: 22 }} aria-hidden />
+        )}
+        {!simulatedDnd && unreadCount > 0 ? (
+          <span css={badgeStyles}>{unreadCount > 9 ? '9+' : unreadCount}</span>
+        ) : null}
       </button>
 
-      {open ? (
+      {open && !simulatedDnd ? (
         <div css={panelStyles(darkMode, placement)}>
           <div css={panelHeadStyles(darkMode)}>
             <h3 css={titleStyles}>Notifications</h3>

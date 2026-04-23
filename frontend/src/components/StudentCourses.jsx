@@ -1,6 +1,6 @@
 /** @jsxImportSource @emotion/react */
 import { css } from '@emotion/react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   HiOutlineBookOpen,
   HiOutlineClock,
@@ -8,7 +8,17 @@ import {
   HiOutlineDocumentText,
   HiOutlineArrowDownTray,
   HiOutlineXMark,
+  HiOutlineMagnifyingGlass,
+  HiOutlineArrowUpTray,
 } from 'react-icons/hi2'
+import { getCoursesVisibleToStudent } from '../getCoursesVisibleToStudent'
+import { findStudentMe } from '../findStudentMe'
+import {
+  formatIntakeDisplay,
+  formatStudyYearDisplay,
+  SEMESTER_FORM_OPTIONS,
+  COURSE_STUDY_YEAR_OPTIONS,
+} from '../courseDisplayUtils'
 
 const apiBase = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
 const ACCENT = '#6366f1'
@@ -72,7 +82,68 @@ const modalBodyStyles = css`padding:1rem;`
 const resourceRowStyles = (darkMode) => css`display:flex; align-items:center; justify-content:space-between; gap:.8rem; border:1px solid ${darkMode ? '#404040' : '#e5e7eb'}; border-radius:10px; padding:.8rem; margin-bottom:.6rem;`
 const assignmentCardStyles = (darkMode) => css`border:1px solid ${darkMode ? '#404040' : '#e5e7eb'}; border-radius:10px; padding:.8rem; margin-bottom:.7rem;`
 
-function StudentCourses({ darkMode, userEmail, studentId }) {
+const courseFilterBarStyles = (darkMode) => css`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 0.95rem;
+  padding: 0.75rem;
+  border-radius: 12px;
+  border: 1px solid ${darkMode ? '#404040' : '#e5e7eb'};
+  background: ${darkMode ? '#1f1f1f' : '#f9fafb'};
+`
+
+const courseFilterSelectStyles = (darkMode) => css`
+  min-width: 8.5rem;
+  padding: 0.42rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid ${darkMode ? '#525252' : '#d1d5db'};
+  background: ${darkMode ? '#262626' : '#fff'};
+  color: inherit;
+  font: inherit;
+  font-size: 0.92rem;
+`
+
+const courseFilterSearchStyles = (darkMode) => css`
+  flex: 1 1 12rem;
+  min-width: min(100%, 12rem);
+  padding: 0.42rem 0.65rem 0.42rem 2.15rem;
+  border-radius: 8px;
+  border: 1px solid ${darkMode ? '#525252' : '#d1d5db'};
+  background: ${darkMode ? '#262626' : '#fff'};
+  color: inherit;
+  font: inherit;
+  font-size: 0.92rem;
+`
+
+const courseFilterSearchWrapStyles = css`
+  position: relative;
+  flex: 1 1 12rem;
+  min-width: min(100%, 12rem);
+  display: flex;
+  align-items: center;
+`
+
+function courseMatchesSearch(c, q) {
+  const s = String(q || '').trim().toLowerCase()
+  if (!s) return true
+  const hay = [
+    c.course_name,
+    c.course_code,
+    c.department,
+    c.lecturer_name,
+    formatStudyYearDisplay(c.course_study_year),
+    c.semester,
+    formatIntakeDisplay(c),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+  return hay.includes(s)
+}
+
+function StudentCourses({ darkMode, userEmail, studentId, studentDatabaseId }) {
   const [courses, setCourses] = useState([])
   const [students, setStudents] = useState([])
   const [entries, setEntries] = useState([])
@@ -83,6 +154,14 @@ function StudentCourses({ darkMode, userEmail, studentId }) {
   const [courseResources, setCourseResources] = useState([])
   const [resourcesLoading, setResourcesLoading] = useState(false)
   const [resourcesError, setResourcesError] = useState('')
+  const [courseSearchQuery, setCourseSearchQuery] = useState('')
+  const [fltSemester, setFltSemester] = useState('')
+  const [fltStudyYear, setFltStudyYear] = useState('')
+  const [demoSubmissions, setDemoSubmissions] = useState([])
+  const [demoLoading, setDemoLoading] = useState(false)
+  const [demoMsg, setDemoMsg] = useState('')
+  const [demoAssignmentEntryId, setDemoAssignmentEntryId] = useState('')
+  const demoFileInputRef = useRef(null)
 
   const studentDownloadHref = (resourceId) =>
     `${apiBase}/backend/course_resources.php?download=1&id=${resourceId}&student_email=${encodeURIComponent(userEmail || '')}`
@@ -117,6 +196,91 @@ function StudentCourses({ darkMode, userEmail, studentId }) {
       active = false
     }
   }, [resourceCourse?.id, userEmail])
+
+  useEffect(() => {
+    if (!assignmentCourse?.id || !userEmail) {
+      setDemoSubmissions([])
+      setDemoMsg('')
+      return undefined
+    }
+    let active = true
+    async function loadDemo() {
+      setDemoLoading(true)
+      setDemoMsg('')
+      try {
+        const res = await fetch(
+          `${apiBase}/backend/demo_assignment_submissions.php?user_email=${encodeURIComponent(userEmail)}&course_id=${assignmentCourse.id}&t=${Date.now()}`,
+          { cache: 'no-store' }
+        )
+        const data = await res.json().catch(() => ({}))
+        if (!active) return
+        if (data.success) setDemoSubmissions(Array.isArray(data.submissions) ? data.submissions : [])
+        else setDemoMsg(data.error || 'Could not load demo uploads')
+      } catch (_) {
+        if (active) setDemoMsg('Could not load demo uploads')
+      } finally {
+        if (active) setDemoLoading(false)
+      }
+    }
+    loadDemo()
+    return () => {
+      active = false
+    }
+  }, [assignmentCourse?.id, userEmail])
+
+  useEffect(() => {
+    if (!assignmentCourse) {
+      setDemoAssignmentEntryId('')
+      return
+    }
+    const list = assignmentCourse.meta?.assignments || []
+    if (list.length === 0) {
+      setDemoAssignmentEntryId('')
+      return
+    }
+    setDemoAssignmentEntryId((prev) => {
+      if (prev && list.some((a) => String(a.id) === String(prev))) return prev
+      return String(list[0].id)
+    })
+  }, [assignmentCourse])
+
+  const uploadDemoAssignment = async (file) => {
+    if (!assignmentCourse?.id || !userEmail || !file) return
+    if (!demoAssignmentEntryId) {
+      setDemoMsg('Select which assignment you are submitting for.')
+      return
+    }
+    setDemoMsg('')
+    setDemoLoading(true)
+    try {
+      const fd = new FormData()
+      fd.append('user_email', userEmail)
+      fd.append('course_id', String(assignmentCourse.id))
+      fd.append('timetable_entry_id', demoAssignmentEntryId)
+      fd.append('file', file)
+      const res = await fetch(`${apiBase}/backend/demo_assignment_submissions.php`, {
+        method: 'POST',
+        body: fd,
+      })
+      const data = await res.json().catch(() => ({}))
+      if (data.success) {
+        setDemoMsg('Uploaded — your lecturer sees on-time / late / missing in Assignment submission trends (vs this due date).')
+        const listRes = await fetch(
+          `${apiBase}/backend/demo_assignment_submissions.php?user_email=${encodeURIComponent(userEmail)}&course_id=${assignmentCourse.id}&t=${Date.now()}`,
+          { cache: 'no-store' }
+        )
+        const listData = await listRes.json().catch(() => ({}))
+        if (listData.success) setDemoSubmissions(Array.isArray(listData.submissions) ? listData.submissions : [])
+      } else {
+        setDemoMsg(data.error || 'Upload failed')
+      }
+    } catch (_) {
+      setDemoMsg('Upload failed')
+    } finally {
+      setDemoLoading(false)
+      if (demoFileInputRef.current) demoFileInputRef.current.value = ''
+    }
+  }
 
   useEffect(() => {
     let active = true
@@ -157,26 +321,25 @@ function StudentCourses({ darkMode, userEmail, studentId }) {
     }
   }, [])
 
-  const me = useMemo(() => {
-    const e = String(userEmail || '').trim().toLowerCase()
-    const sid = String(studentId || '').trim().toUpperCase()
-    return (
-      students.find((s) => String(s.email || '').trim().toLowerCase() === e) ||
-      students.find((s) => String(s.student_id || '').trim().toUpperCase() === sid) ||
-      null
-    )
-  }, [students, userEmail, studentId])
+  const me = useMemo(
+    () => findStudentMe(students, { userEmail, studentId, studentDatabaseId }),
+    [students, userEmail, studentId, studentDatabaseId]
+  )
 
-  const myCourses = useMemo(() => {
-    if (!me) return []
-    const enrolled = courses.filter((c) => Array.isArray(c.student_ids) && c.student_ids.map(Number).includes(Number(me.id)))
-    if (enrolled.length > 0) return enrolled
-    return courses.filter((c) => (c.department || '') === (me.department || ''))
-  }, [courses, me])
+  const myCourses = useMemo(() => getCoursesVisibleToStudent(courses, me), [courses, me])
+
+  const filteredMyCourses = useMemo(() => {
+    return myCourses.filter((c) => {
+      if (!courseMatchesSearch(c, courseSearchQuery)) return false
+      if (fltSemester && String(c.semester || '') !== fltSemester) return false
+      if (fltStudyYear && String(c.course_study_year || '') !== fltStudyYear) return false
+      return true
+    })
+  }, [myCourses, courseSearchQuery, fltSemester, fltStudyYear])
 
   const enriched = useMemo(() => {
     const todayYmd = toYMD(new Date())
-    return myCourses.map((c) => {
+    return filteredMyCourses.map((c) => {
       const cid = Number(c.id)
       const classes = entries
         .filter((e) => e.entry_type === 'class' && Number(e.course_id) === cid)
@@ -217,7 +380,7 @@ function StudentCourses({ darkMode, userEmail, studentId }) {
         },
       }
     })
-  }, [myCourses, entries])
+  }, [filteredMyCourses, entries])
 
   const totals = useMemo(() => {
     const totalCourses = enriched.length
@@ -227,6 +390,22 @@ function StudentCourses({ darkMode, userEmail, studentId }) {
     const totalAssignments = enriched.reduce((a, c) => a + c.meta.assignments.length, 0)
     return { totalCourses, totalCredits, avgProgress, completed, totalAssignments }
   }, [enriched])
+
+  const filtersActive =
+    Boolean(courseSearchQuery.trim()) || Boolean(fltSemester) || Boolean(fltStudyYear)
+
+  const clearCourseFilters = () => {
+    setCourseSearchQuery('')
+    setFltSemester('')
+    setFltStudyYear('')
+  }
+
+  const emptyListMessage =
+    myCourses.length === 0
+      ? 'No enrolled courses found.'
+      : filtersActive
+        ? 'No courses match your filters.'
+        : 'No enrolled courses found.'
 
   return (
     <div css={wrapStyles}>
@@ -258,6 +437,64 @@ function StudentCourses({ darkMode, userEmail, studentId }) {
         </div>
       </div>
 
+      {!loading && myCourses.length > 0 ? (
+        <div css={courseFilterBarStyles(darkMode)} role="search" aria-label="Filter your courses">
+          <span css={subtitleStyles(darkMode)} style={{ margin: 0, fontWeight: 700 }}>
+            Filters
+          </span>
+          <div css={courseFilterSearchWrapStyles}>
+            <HiOutlineMagnifyingGlass
+              aria-hidden
+              style={{
+                position: 'absolute',
+                left: '0.55rem',
+                width: '1.1rem',
+                height: '1.1rem',
+                color: darkMode ? '#9ca3af' : '#6b7280',
+                pointerEvents: 'none',
+              }}
+            />
+            <input
+              type="search"
+              css={courseFilterSearchStyles(darkMode)}
+              placeholder="Search name, code, department…"
+              value={courseSearchQuery}
+              onChange={(e) => setCourseSearchQuery(e.target.value)}
+              aria-label="Search courses"
+            />
+          </div>
+          <select
+            css={courseFilterSelectStyles(darkMode)}
+            value={fltSemester}
+            onChange={(e) => setFltSemester(e.target.value)}
+            aria-label="Semester"
+          >
+            {SEMESTER_FORM_OPTIONS.map((o) => (
+              <option key={o.value || 'all-s'} value={o.value}>
+                {o.value ? o.label : 'Any semester'}
+              </option>
+            ))}
+          </select>
+          <select
+            css={courseFilterSelectStyles(darkMode)}
+            value={fltStudyYear}
+            onChange={(e) => setFltStudyYear(e.target.value)}
+            aria-label="Study year"
+          >
+            {COURSE_STUDY_YEAR_OPTIONS.map((o) => (
+              <option key={o.value || 'all-y'} value={o.value}>
+                {o.value ? o.label : 'Any study year'}
+              </option>
+            ))}
+          </select>
+          {filtersActive ? (
+            <button type="button" css={ghostBtnStyles(darkMode)} onClick={clearCourseFilters}>
+              Clear filters
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
       <section css={sectionStyles(darkMode)}>
         <h2 css={sectionTitleStyles}>
           <HiOutlineBookOpen style={{ color: ACCENT, width: 24, height: 24 }} />
@@ -266,13 +503,24 @@ function StudentCourses({ darkMode, userEmail, studentId }) {
         {loading ? (
           <p>Loading courses...</p>
         ) : enriched.length === 0 ? (
-          <p>No enrolled courses found.</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.55rem' }}>
+            <p style={{ margin: 0 }}>{emptyListMessage}</p>
+            {filtersActive && myCourses.length > 0 ? (
+              <button type="button" css={ghostBtnStyles(darkMode)} onClick={clearCourseFilters}>
+                Reset filters
+              </button>
+            ) : null}
+          </div>
         ) : (
           enriched.map((c) => (
             <article key={c.id} css={courseCardStyles(darkMode)}>
               <div css={chipsRowStyles}>
                 <span css={chipStyles(darkMode)}>{c.course_code}</span>
                 <span css={chipStyles(darkMode)}>{Number(c.credits) || 0} Credits</span>
+                {c.semester ? <span css={chipStyles(darkMode)}>{c.semester}</span> : null}
+                {c.course_study_year ? (
+                  <span css={chipStyles(darkMode)}>{formatStudyYearDisplay(c.course_study_year)}</span>
+                ) : null}
                 <span css={activeChipStyles}>Active</span>
               </div>
               <h3 css={courseNameStyles}>{c.course_name}</h3>
@@ -396,6 +644,93 @@ function StudentCourses({ darkMode, userEmail, studentId }) {
               </button>
             </div>
             <div css={modalBodyStyles}>
+              <div css={assignmentCardStyles(darkMode)} style={{ marginBottom: '1rem' }}>
+                <h4 style={{ margin: '0 0 0.35rem', fontSize: '1.1rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                  <HiOutlineArrowUpTray aria-hidden />
+                  Demo assignment upload
+                </h4>
+                <p css={subtitleStyles(darkMode)} style={{ margin: '0 0 0.55rem' }}>
+                  Pick the assignment, then upload a file. Your module leader sees <strong>on-time</strong> (before/on
+                  deadline), <strong>late</strong> (after), and <strong>missing</strong> (no file) on{' '}
+                  <strong>Assignment submission trends</strong>.
+                </p>
+                <label htmlFor="demo-assignment-pick" css={subtitleStyles(darkMode)} style={{ display: 'block', margin: '0 0 0.35rem', fontWeight: 700 }}>
+                  Which assignment is this file for?
+                </label>
+                <select
+                  id="demo-assignment-pick"
+                  value={demoAssignmentEntryId}
+                  onChange={(e) => setDemoAssignmentEntryId(e.target.value)}
+                  disabled={demoLoading || !assignmentCourse.meta.assignments?.length}
+                  style={{
+                    width: '100%',
+                    maxWidth: '28rem',
+                    marginBottom: '0.55rem',
+                    padding: '0.45rem 0.5rem',
+                    borderRadius: 8,
+                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                    border: darkMode ? '1px solid #4b5563' : '1px solid #d1d5db',
+                    background: darkMode ? '#1f1f1f' : '#fff',
+                    color: 'inherit',
+                  }}
+                >
+                  {assignmentCourse.meta.assignments.map((a) => (
+                    <option key={a.id} value={String(a.id)}>
+                      {a.title} — due{' '}
+                      {parseYMD(a.due).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {a.dueTime ? ` · ${fmtTime(a.dueTime)}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  ref={demoFileInputRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.zip,.png,.jpg,.jpeg"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0]
+                    if (f) uploadDemoAssignment(f)
+                  }}
+                />
+                <button
+                  type="button"
+                  css={primaryBtnStyles}
+                  disabled={demoLoading || !demoAssignmentEntryId}
+                  onClick={() => demoFileInputRef.current?.click()}
+                >
+                  {demoLoading ? 'Working…' : 'Choose file to upload'}
+                </button>
+                {demoMsg ? (
+                  <p css={subtitleStyles(darkMode)} style={{ margin: '0.5rem 0 0' }}>
+                    {demoMsg}
+                  </p>
+                ) : null}
+                {demoSubmissions.length > 0 ? (
+                  <div style={{ marginTop: '0.65rem' }}>
+                    <p css={subtitleStyles(darkMode)} style={{ margin: '0 0 0.35rem', fontWeight: 700 }}>
+                      Your recent demo uploads
+                    </p>
+                    <ul style={{ margin: 0, paddingLeft: '1.1rem', fontSize: '0.9rem' }}>
+                      {demoSubmissions.slice(0, 8).map((s) => (
+                        <li key={s.id} css={subtitleStyles(darkMode)}>
+                          {s.original_filename}{' '}
+                          <span style={{ opacity: 0.85 }}>
+                            ({formatBytes(s.file_size)}
+                            {s.uploaded_at
+                              ? ` · ${new Date(String(s.uploaded_at).replace(' ', 'T')).toLocaleString(undefined, {
+                                  dateStyle: 'short',
+                                  timeStyle: 'short',
+                                })}`
+                              : ''}
+                            )
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </div>
               {assignmentCourse.meta.assignments.length === 0 ? (
                 <p css={subtitleStyles(darkMode)} style={{ margin: 0 }}>
                   No assignment due dates found for this course yet.
@@ -442,6 +777,14 @@ function StudentCourses({ darkMode, userEmail, studentId }) {
                 <h3 css={modalTitleStyles}>{detailCourse.course_name}</h3>
                 <p css={modalSubStyles(darkMode)}>
                   {detailCourse.course_code} · {Number(detailCourse.credits) || 0} Credits · {detailCourse.department || 'General'}
+                  <br />
+                  <span style={{ fontSize: '0.92rem' }}>
+                    Intake {formatIntakeDisplay(detailCourse)}
+                    {detailCourse.semester ? ` · ${detailCourse.semester}` : ''}
+                    {detailCourse.course_study_year
+                      ? ` · ${formatStudyYearDisplay(detailCourse.course_study_year)}`
+                      : ''}
+                  </span>
                 </p>
               </div>
               <button type="button" css={closeBtnStyles(darkMode)} onClick={() => setDetailCourse(null)}>

@@ -41,14 +41,12 @@ import {
   personalGrid,
   personalField,
   personalFieldAddress,
-  personalFieldBio,
   personalLabel,
   personalValue,
   personalValueIcon,
   personalValueText,
   personalInput,
   personalInputReadonly,
-  personalTextArea,
   editActions,
   actionBtn,
   profileError,
@@ -57,6 +55,10 @@ import ProfilePasswordChange from './ProfilePasswordChange'
 import LecturerCalendar from './LecturerCalendar'
 import LecturerCourses from './LecturerCourses'
 import LecturerAttendance from './LecturerAttendance'
+import LecturerPerformance from './LecturerPerformance'
+import LecturerAnnouncements from './LecturerAnnouncements'
+import LecturerDashboardHome from './LecturerDashboardHome'
+import LecturerAwardBadges from './LecturerAwardBadges'
 import NotificationBell from './NotificationBell'
 import {
   HiOutlineSquares2X2,
@@ -76,9 +78,10 @@ import {
   HiOutlineEnvelope,
   HiOutlinePhone,
   HiOutlineMapPin,
-  HiOutlineDocumentText,
   HiOutlineBuildingOffice2,
   HiOutlineClock,
+  HiOutlineDocumentText,
+  HiOutlineTrophy,
 } from 'react-icons/hi2'
 
 const apiBase = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
@@ -272,33 +275,13 @@ const contentStyles = (darkMode, profileTab, wideTab) => css`
   width: 100%;
 `
 
-const titleStyles = css`
-  font-size: 1.25rem;
-  font-weight: 700;
-  margin-bottom: 0.75rem;
-
-  @media (min-width: 480px) {
-    font-size: 1.5rem;
-    margin-bottom: 1rem;
-  }
-`
-
-const textStyles = css`
-  margin-bottom: 1.25rem;
-  opacity: 0.9;
-  font-size: 0.95rem;
-
-  @media (min-width: 480px) {
-    margin-bottom: 1.5rem;
-    font-size: 1rem;
-  }
-`
-
 const LECTURER_NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: HiOutlineSquares2X2 },
   { id: 'attendance', label: 'Attendance', icon: HiOutlineClipboardDocumentCheck },
   { id: 'performance', label: 'Performance', icon: HiOutlineChartBar },
   { id: 'courses', label: 'Courses', icon: HiOutlineBookOpen },
+  { id: 'badges', label: 'Badge awards', icon: HiOutlineTrophy },
+  { id: 'announcements', label: 'Announcements', icon: HiOutlineDocumentText },
   { id: 'calendar', label: 'Calendar', icon: HiOutlineCalendar },
   { id: 'profile', label: 'Profile', icon: HiOutlineUser },
 ]
@@ -322,22 +305,62 @@ function normalizeUkPhone(value) {
   return raw
 }
 
+function toYmd(date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+function getCurrentWeekRange() {
+  const now = new Date()
+  const day = now.getDay()
+  const mondayOffset = day === 0 ? -6 : 1 - day
+  const from = new Date(now)
+  from.setDate(now.getDate() + mondayOffset)
+  const to = new Date(from)
+  to.setDate(from.getDate() + 6)
+  return { from: toYmd(from), to: toYmd(to) }
+}
+
+function timeToMinutes(value) {
+  const text = String(value || '')
+  const parts = text.split(':')
+  if (parts.length < 2) return null
+  const hh = Number(parts[0])
+  const mm = Number(parts[1])
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null
+  return hh * 60 + mm
+}
+
 function LecturerDashboard({ darkMode, onToggleDarkMode }) {
   const navigate = useNavigate()
   const { mobileMenuOpen, setMobileMenuOpen, closeMenu } = useMobileDrawer()
   const [activeNav, setActiveNav] = useState('dashboard')
+  const [performanceIntent, setPerformanceIntent] = useState(null)
+  const consumePerformanceIntent = useCallback(() => setPerformanceIntent(null), [])
   const [userEmail, setUserEmail] = useState('')
   const [departmentName, setDepartmentName] = useState('')
   const [departmentCode, setDepartmentCode] = useState('')
   const [isEditingProfile, setIsEditingProfile] = useState(false)
   const [profileErrorMsg, setProfileErrorMsg] = useState('')
+  const [profileStats, setProfileStats] = useState({
+    courses: 0,
+    students: 0,
+    hoursPerWeek: 0,
+  })
   const [lecturerProfile, setLecturerProfile] = useState({
     phone: '+44 7700 900123',
     office: 'Building A, Room 305',
     address: '123 University Avenue, Newcastle upon Tyne',
-    bio: 'Computer Science lecturer focused on software engineering and student success.',
   })
   const [profileDraft, setProfileDraft] = useState(lecturerProfile)
+
+  useEffect(() => {
+    if (activeNav !== 'performance') {
+      setPerformanceIntent(null)
+    }
+  }, [activeNav])
 
   let userName = 'Lecturer'
   try {
@@ -401,6 +424,69 @@ function LecturerDashboard({ darkMode, onToggleDarkMode }) {
     refreshDepartmentFromApi()
   }, [refreshDepartmentFromApi])
 
+  const refreshProfileStatsFromApi = useCallback(async () => {
+    if (!userEmail) return
+    try {
+      const week = getCurrentWeekRange()
+      const [lectRes, courseRes, timetableRes] = await Promise.all([
+        fetch(`${apiBase}/backend/lecturers.php?t=${Date.now()}`, { cache: 'no-store' }),
+        fetch(`${apiBase}/backend/courses.php?t=${Date.now()}`, { cache: 'no-store' }),
+        fetch(
+          `${apiBase}/backend/timetable.php?from=${encodeURIComponent(week.from)}&to=${encodeURIComponent(week.to)}&t=${Date.now()}`,
+          { cache: 'no-store' }
+        ),
+      ])
+      const [lectData, courseData, timetableData] = await Promise.all([
+        lectRes.json(),
+        courseRes.json(),
+        timetableRes.json(),
+      ])
+      const lecturers = lectData.success ? lectData.lecturers || [] : []
+      const courses = courseData.success ? courseData.courses || [] : []
+      const entries = timetableData.success ? timetableData.entries || [] : []
+
+      const me = lecturers.find(
+        (l) => String(l.email || '').trim().toLowerCase() === String(userEmail).trim().toLowerCase()
+      )
+      if (!me) {
+        setProfileStats({ courses: 0, students: 0, hoursPerWeek: 0 })
+        return
+      }
+
+      const lid = String(me.lecturer_id || '').trim()
+      const myCourses = courses.filter((c) => String(c.lecturer_id || '').trim() === lid)
+      const uniqueStudents = new Set()
+      myCourses.forEach((course) => {
+        ;(Array.isArray(course.students) ? course.students : []).forEach((s) => {
+          uniqueStudents.add(String(s.id))
+        })
+      })
+
+      const weekMinutes = entries.reduce((sum, entry) => {
+        const isMyEntry =
+          Array.isArray(entry.lecturers) &&
+          entry.lecturers.some((l) => Number(l.id) === Number(me.id))
+        if (!isMyEntry || entry.entry_type !== 'class') return sum
+        const start = timeToMinutes(entry.start_time)
+        const end = timeToMinutes(entry.end_time)
+        if (start == null || end == null || end <= start) return sum
+        return sum + (end - start)
+      }, 0)
+
+      setProfileStats({
+        courses: myCourses.length,
+        students: uniqueStudents.size,
+        hoursPerWeek: Number((weekMinutes / 60).toFixed(1)),
+      })
+    } catch (_) {
+      setProfileStats({ courses: 0, students: 0, hoursPerWeek: 0 })
+    }
+  }, [userEmail])
+
+  useEffect(() => {
+    refreshProfileStatsFromApi()
+  }, [refreshProfileStatsFromApi])
+
   useEffect(() => {
     if (!userEmail) return
     try {
@@ -411,7 +497,6 @@ function LecturerDashboard({ darkMode, onToggleDarkMode }) {
         phone: normalizeUkPhone(parsed?.phone),
         office: String(parsed?.office || lecturerProfile.office),
         address: String(parsed?.address || lecturerProfile.address),
-        bio: String(parsed?.bio || lecturerProfile.bio),
       }
       setLecturerProfile(next)
       setProfileDraft(next)
@@ -453,7 +538,6 @@ function LecturerDashboard({ darkMode, onToggleDarkMode }) {
       phone,
       office: (profileDraft.office || '').trim() || lecturerProfile.office,
       address: (profileDraft.address || '').trim() || lecturerProfile.address,
-      bio: (profileDraft.bio || '').trim() || lecturerProfile.bio,
     }
     setLecturerProfile(next)
     setProfileDraft(next)
@@ -480,7 +564,7 @@ function LecturerDashboard({ darkMode, onToggleDarkMode }) {
             <div css={logoIconStyles(darkMode)}>
               <HiOutlineAcademicCap />
             </div>
-            <span css={logoTextStyles(darkMode)}>Strack</span>
+            <span css={logoTextStyles(darkMode)}>STRACK</span>
           </div>
           <div css={css`display: flex; align-items: center; gap: 0.15rem; flex-shrink: 0;`}>
             <NotificationBell darkMode={darkMode} userEmail={userEmail} placement="sidebar" />
@@ -542,7 +626,7 @@ function LecturerDashboard({ darkMode, onToggleDarkMode }) {
           >
             <HiOutlineBars3 />
           </button>
-          <span css={appMobileTopBarTitle(darkMode)}>Strack</span>
+          <span css={appMobileTopBarTitle(darkMode)}>STRACK</span>
           <div css={css`display: inline-flex; align-items: center; gap: 0.3rem;`}>
             <NotificationBell darkMode={darkMode} userEmail={userEmail} />
             <button
@@ -560,27 +644,52 @@ function LecturerDashboard({ darkMode, onToggleDarkMode }) {
           css={contentStyles(
             darkMode,
             activeNav === 'profile',
-            activeNav === 'calendar' || activeNav === 'courses' || activeNav === 'attendance'
+            activeNav === 'calendar' ||
+              activeNav === 'courses' ||
+              activeNav === 'badges' ||
+              activeNav === 'announcements' ||
+              activeNav === 'attendance' ||
+              activeNav === 'performance' ||
+              activeNav === 'dashboard'
           )}
         >
           {activeNav === 'dashboard' && (
-            <>
-              <h1 css={titleStyles}>Dashboard</h1>
-              <p css={textStyles}>
-                Welcome to the lecturer portal. Here you can manage courses, view student performance, and upload grades.
-              </p>
-            </>
+            <LecturerDashboardHome
+              darkMode={darkMode}
+              userEmail={userEmail}
+              onOpenPerformance={(payload) => {
+                setPerformanceIntent(payload && typeof payload === 'object' ? payload : {})
+                setActiveNav('performance')
+              }}
+              onGoToAttendance={() => {
+                setActiveNav('attendance')
+                closeMenu()
+              }}
+              onGoToGrades={() => {
+                setPerformanceIntent({})
+                setActiveNav('performance')
+                closeMenu()
+              }}
+              onViewAllCourses={() => {
+                setActiveNav('courses')
+                closeMenu()
+              }}
+            />
           )}
           {activeNav === 'attendance' && <LecturerAttendance darkMode={darkMode} userEmail={userEmail} />}
           {activeNav === 'performance' && (
-            <>
-              <h1 css={titleStyles}>Performance</h1>
-              <p css={textStyles}>
-                This is the performance page. View and analyse student performance and grades here.
-              </p>
-            </>
+            <LecturerPerformance
+              darkMode={darkMode}
+              userEmail={userEmail}
+              performanceIntent={performanceIntent}
+              onConsumePerformanceIntent={consumePerformanceIntent}
+            />
           )}
           {activeNav === 'courses' && <LecturerCourses darkMode={darkMode} userEmail={userEmail} />}
+          {activeNav === 'badges' && <LecturerAwardBadges darkMode={darkMode} userEmail={userEmail} />}
+          {activeNav === 'announcements' && (
+            <LecturerAnnouncements darkMode={darkMode} userEmail={userEmail} />
+          )}
           {activeNav === 'calendar' && (
             <LecturerCalendar darkMode={darkMode} userEmail={userEmail} />
           )}
@@ -607,7 +716,7 @@ function LecturerDashboard({ darkMode, onToggleDarkMode }) {
                       </div>
                       <div css={profileBadgeRow}>
                         <span css={profileBadgeAccent}>Lecturer</span>
-                        <span css={profileBadgeMuted(darkMode)}>2 Courses</span>
+                        <span css={profileBadgeMuted(darkMode)}>{profileStats.courses} Courses</span>
                       </div>
                     </div>
                   </div>
@@ -626,7 +735,7 @@ function LecturerDashboard({ darkMode, onToggleDarkMode }) {
                     <HiOutlineBookOpen aria-hidden />
                     <span css={kpiLabel}>Courses</span>
                   </div>
-                  <div css={kpiValue}>2</div>
+                  <div css={kpiValue}>{profileStats.courses}</div>
                   <div css={kpiSub(darkMode)}>Active courses</div>
                 </article>
                 <article css={kpiCard(darkMode)}>
@@ -634,7 +743,7 @@ function LecturerDashboard({ darkMode, onToggleDarkMode }) {
                     <HiOutlineUserGroup aria-hidden />
                     <span css={kpiLabel}>Students</span>
                   </div>
-                  <div css={kpiValue}>156</div>
+                  <div css={kpiValue}>{profileStats.students}</div>
                   <div css={kpiSub(darkMode)}>Total enrolled</div>
                 </article>
                 <article css={kpiCard(darkMode)}>
@@ -642,7 +751,7 @@ function LecturerDashboard({ darkMode, onToggleDarkMode }) {
                     <HiOutlineClock aria-hidden />
                     <span css={kpiLabel}>Hours / week</span>
                   </div>
-                  <div css={kpiValue}>18</div>
+                  <div css={kpiValue}>{profileStats.hoursPerWeek}</div>
                   <div css={kpiSub(darkMode)}>Teaching hours</div>
                 </article>
               </section>
@@ -735,23 +844,6 @@ function LecturerDashboard({ darkMode, onToggleDarkMode }) {
                           <HiOutlineMapPin aria-hidden />
                         </span>
                         <span css={personalValueText}>{lecturerProfile.address}</span>
-                      </div>
-                    )}
-                  </div>
-                  <div css={[personalField, personalFieldBio]}>
-                    <span css={personalLabel}>Bio</span>
-                    {isEditingProfile ? (
-                      <textarea
-                        css={personalTextArea(darkMode)}
-                        value={profileDraft.bio}
-                        onChange={(e) => setProfileDraft((p) => ({ ...p, bio: e.target.value }))}
-                      />
-                    ) : (
-                      <div css={personalValue(darkMode)}>
-                        <span css={personalValueIcon}>
-                          <HiOutlineDocumentText aria-hidden />
-                        </span>
-                        <span css={personalValueText}>{lecturerProfile.bio}</span>
                       </div>
                     )}
                   </div>
