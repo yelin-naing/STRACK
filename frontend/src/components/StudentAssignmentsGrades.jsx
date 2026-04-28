@@ -20,14 +20,6 @@ const title = css`
   line-height: 1.1;
 `
 
-const sub = (darkMode) => css`
-  margin: 0;
-  font-size: 0.95rem;
-  line-height: 1.45;
-  color: ${darkMode ? '#9ca3af' : '#6b7280'};
-  max-width: 52rem;
-`
-
 const panel = (darkMode) => css`
   border: 1px solid ${darkMode ? '#2f2f2f' : '#e5e7eb'};
   border-radius: 14px;
@@ -287,11 +279,6 @@ export default function StudentAssignmentsGrades({ darkMode, userEmail }) {
         />
         <h1 css={title}>Assignments & grades</h1>
       </div>
-      <p css={sub(darkMode)}>
-        <strong>Weight</strong> is each assessment share of the module (your lecturer sets these to total 100%).{' '}
-        <strong>Module overall</strong> uses those weights for completed items (same as lecturer Performance). Not marked
-        rows are excluded. Bands: D (70+), M (60–69), P (40–59), F (under 40).
-      </p>
 
       {loading ? (
         <p css={muted(darkMode)}>Loading…</p>
